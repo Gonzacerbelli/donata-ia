@@ -67,10 +67,7 @@ async def init_indexes(database: AsyncIOMotorDatabase | None = None) -> None:
     db = database or await get_db()
     for name, specs in INDEXES.items():
         await db[name].create_indexes(
-            [
-                IndexModel(spec["keys"], unique=spec.get("unique", False))
-                for spec in specs
-            ]
+            [IndexModel(spec["keys"], unique=spec.get("unique", False)) for spec in specs]
         )
 
 

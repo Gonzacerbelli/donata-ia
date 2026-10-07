@@ -3,7 +3,7 @@ import re
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
-from ..models import Product, Provider, doc_to_model, to_mongo, utcnow
+from ..models import Product, Provider, doc_to_model, utcnow
 from .base import (
     coll,
     count_docs,
@@ -108,7 +108,9 @@ async def create_product(db: AsyncIOMotorDatabase, data: dict) -> Product:
     return product
 
 
-async def update_product(db: AsyncIOMotorDatabase, product_id: str, updates: dict) -> Product | None:
+async def update_product(
+    db: AsyncIOMotorDatabase, product_id: str, updates: dict
+) -> Product | None:
     oid = valid_oid(product_id)
     if oid is None:
         return None
