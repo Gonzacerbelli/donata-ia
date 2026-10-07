@@ -1,0 +1,137 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "instructions": [
+    "AGENTS.md",
+    "backend/AGENTS.md",
+    "frontend/AGENTS.md"
+  ],
+
+  "references": {
+    "legacy": {
+      "path": "../donata-deco",
+      "description": "Sistema heredado Streamlit + FastAPI + MongoDB. Contiene la logica de negocio probada (ventas, stock atomico, pagos, reportes) que se esta portando a React + FastAPI + Atlas. Leer ANTES de implementar cualquier caso de uso de negocio."
+    }
+  },
+
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "git status": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "docker compose ps": "allow",
+      "docker compose logs*": "allow",
+      "pytest*": "allow",
+      "npm run*": "allow"
+    },
+    "webfetch": "allow"
+  },
+
+  "mcp": {
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": true
+    },
+    "filesystem": {
+      "type": "local",
+      "command": [
+        "npx", "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Users\\Gonzalo\\Documents\\Repositorios\\donata-deco",
+        "C:\\Users\\Gonzalo\\Documents\\Repositorios\\donata-ia"
+      ],
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp"],
+      "enabled": true,
+      "environment": {
+        "BROWSER": "chromium"
+      }
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true
+    },
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer {env:GITHUB_PAT}"
+      },
+      "enabled": true
+    }
+  },
+
+  "agent": {
+    "spec-research": {
+      "description": "Investiga el sistema heredado y el contexto de un caso de uso antes de disenar. No escribe codigo.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask",
+        "webfetch": "allow"
+      }
+    },
+    "spec-design": {
+      "description": "Disena la solucion tecnica de un caso de uso: modelo de datos, endpoints, componentes, flujos. No escribe codigo de implementacion.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "spec-tasks": {
+      "description": "Descompone un diseño en tareas atomicas y verificables, cada una con su criterio de terminado.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "backend-engineer": {
+      "description": "Implementa y testea en FastAPI + MongoDB respetando las reglas de negocio de AGENTS.md.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "frontend-engineer": {
+      "description": "Implementa la interfaz React + TypeScript respetando las convenciones y la seguridad de frontend.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "ai-engineer": {
+      "description": "Trabaja el agente LangChain + Ollama: system prompt, tools tipadas, tool-calling y evaluacion del modelo local.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "reviewer": {
+      "description": "Revision adversarial de codigo ya escrito. Busca errores, casos borde e invariantes rotas. No edita.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    },
+    "security-auditor": {
+      "description": "Audita la seguridad contra el checklist de docs/SEGURIDAD.md. Reporta, no corrige.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    }
+  }
+}

@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Chroma vector store (persistencia local de la base vectorial)
+data/
+chroma_db/
