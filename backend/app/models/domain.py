@@ -84,6 +84,8 @@ class Sale(BaseDocument):
     status: Literal["pendiente", "en_proceso", "entregado", "cancelado"] = "pendiente"
     payments: list[Payment] = Field(default_factory=list)
     notes: str | None = None
+    ship_by: datetime | None = None
+    payment_due: datetime | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 

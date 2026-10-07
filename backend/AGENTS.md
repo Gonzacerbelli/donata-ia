@@ -103,7 +103,7 @@ no la puede reutilizar.
 - [ ] El precio dual se resuelve por tipo de cliente y **se persiste en el ítem**.
 - [ ] Fechas: `datetime` **aware UTC** en Mongo.
 - [ ] Borrar con referencias → `409`, nunca borrado en cascada.
-- [ ] Export: **misma query** que el listado, mismos filtros, mismo orden, sin paginación.
+- [x] Export: **misma query** que el listado, mismos filtros, mismo orden, sin paginación.
 
 ## Seguridad — checklist
 
@@ -112,7 +112,7 @@ no la puede reutilizar.
 - [x] Headers de seguridad (HSTS en prod, `X-Content-Type-Options`, `X-Frame-Options`,
       `Referrer-Policy`, `Permissions-Policy`).
 - [ ] CORS desde `CORS_ORIGINS`. Nunca `*` con `allow_credentials=True`.
-- [ ] Rate limit: auth 10/min · chat 20/min · export 10/min · escritura 60/min · global 120/min.
+- [x] Rate limit: auth 10/min · chat 20/min · export 10/min · escritura 60/min · global 120/min.
 - [ ] Headers: HSTS (prod), `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
       `Permissions-Policy`.
 - [ ] Validación estricta: rangos con `Field(ge=0, le=...)`, `max_length`, `EmailStr`.

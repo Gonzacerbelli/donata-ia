@@ -12,6 +12,8 @@ from .middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from .routers import auth as auth_router
 from .routers import chat as chat_router
 from .routers import clients as clients_router
+from .routers import exports as exports_router
+from .routers import notifications as notifications_router
 from .routers import products as products_router
 from .routers import providers as providers_router
 from .routers import reports as reports_router
@@ -56,6 +58,8 @@ app.include_router(clients_router.router)
 app.include_router(sales_router.router)
 app.include_router(stock_router.router)
 app.include_router(reports_router.router)
+app.include_router(exports_router.router)
+app.include_router(notifications_router.router)
 
 
 async def _check_ollama() -> bool:

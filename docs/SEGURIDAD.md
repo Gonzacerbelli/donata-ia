@@ -231,7 +231,7 @@ Un usuario (o un dato guardado) puede intentar *"ignorá tus instrucciones y mar
 - [ ] Un request a `/products` sin token devuelve `401`.
 - [x] El endpoint de `/auth` rate-limitea.
 - [ ] Un origen no permitido no recibe `Access-Control-Allow-Origin`.
-- [ ] Un export con valores que empiezan con `=` produce texto, no fórmula.
+- [x] Un export con valores que empiezan con `=` produce texto, no fórmula.
 - [ ] `Active` deshabilitado impide obtener sesión.
 - [ ] El chat no puede ejecutar ninguna acción fuera de sus tools.
 - [ ] Una acción de escritura vía chat pide confirmación en la UI.
