@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,7 @@ export function AuthCallbackPage() {
   const { signInWithToken } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const startedRef = useRef(false);
 
   useEffect(() => {
     const oauthError = params.get("error");
@@ -25,22 +26,18 @@ export function AuthCallbackPage() {
       setError("La respuesta de Google no incluyó un código de acceso válido.");
       return;
     }
-    let active = true;
+    if (startedRef.current) return;
+    startedRef.current = true;
     exchangeAuthCode(code)
       .then(async (response) => {
         await signInWithToken(response.access_token);
-        if (active) navigate("/dashboard", { replace: true });
+        navigate("/dashboard", { replace: true });
       })
       .catch((cause) => {
-        if (active) {
-          setError(
-            cause instanceof ApiError ? cause.message : "No pudimos completar el inicio de sesión.",
-          );
-        }
+        setError(
+          cause instanceof ApiError ? cause.message : "No pudimos completar el inicio de sesión.",
+        );
       });
-    return () => {
-      active = false;
-    };
   }, [params, signInWithToken, navigate]);
 
   return (
