@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -119,8 +119,8 @@ class ChatThread(BaseDocument):
 
 class ToolCall(BaseModel):
     name: str
-    arguments: dict
-    result: dict | None = None
+    arguments: dict = Field(default_factory=dict)
+    result: Any = None
     ok: bool = True
     created_at: datetime = Field(default_factory=utcnow)
 
