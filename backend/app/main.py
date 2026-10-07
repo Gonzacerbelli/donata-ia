@@ -7,6 +7,7 @@ from .config import settings
 from .core.errors import register_exception_handlers
 from .db import close_db, connect_db, init_indexes, ping
 from .routers import auth as auth_router
+from .routers import chat as chat_router
 from .routers import clients as clients_router
 from .routers import products as products_router
 from .routers import providers as providers_router
@@ -36,6 +37,7 @@ app.add_middleware(
 register_exception_handlers(app)
 
 app.include_router(auth_router.router)
+app.include_router(chat_router.router)
 app.include_router(providers_router.router)
 app.include_router(products_router.router)
 app.include_router(clients_router.router)
