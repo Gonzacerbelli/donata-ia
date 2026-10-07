@@ -14,8 +14,8 @@
 | **F3** | Backend de negocio: auth, proveedores, productos, clientes, órdenes, stock | ✅ **Completada** |
 | **F4** | Backend de soporte: reports, historial de chat, RAG, servidor MCP + agente | ✅ **Completada** (incluye notificaciones y exports) |
 | **F5** | Frontend: base, auth, layout | ✅ **Completada** |
-| **F6** | Frontend: módulos de negocio (dashboard, productos, clientes, órdenes, proveedores) | ⬜ Pendiente |
-| **F7** | Frontend: notificaciones, exportación, chat IA | ⬜ Pendiente |
+| **F6** | Frontend: módulos de negocio (dashboard, productos, clientes, órdenes, proveedores) | ✅ **Completada** |
+| **F7** | Frontend: notificaciones, exportación, chat IA | ✅ **Completada** (sin streaming SSE; ver nota en 7.3) |
 | **F8** | Seed de datos, tests E2E, hardening, README final | ⬜ Pendiente |
 
 **Leyenda:** ⬜ pendiente · ⏳ en curso · ✅ completada
@@ -200,6 +200,15 @@ del flujo OAuth de Google. Verificado con `tsc --noEmit`, `vite build`, `eslint`
 | 6.5 | Órdenes: listado con filtros, creación con ítems mixtos, detalle, pagos, estados | CU05 |
 | 6.6 | Exportación: botones CSV/XLSX que reutilizan los filtros activos | CU10 |
 
+**Estado F6.** Implementado bajo `frontend/src/features/`: `providers` (CU06), `products` (CU03 + CU08
+con ajuste de stock e historial de movimientos), `clients` (CU04 con resumen de actividad), `orders`
+(CU05 con listado filtrado, creación de ítems mixtos, detalle, pagos y estados) y `dashboard` (CU02
+con KPIs navegables de `/reports/*`, filtro de rango por fecha y tablas de productos más vendidos,
+stock bajo y valor de inventario). La exportación (CU10) se centraliza en `ExportButtons`, que
+reutiliza los filtros activos de cada listado y descarga el binario con el token de sesión. Cada
+pantalla respeta los cuatro estados (cargando/vacío/error/datos). Verificado con `tsc --noEmit`,
+`vite build`, `eslint` y Vitest.
+
 ---
 
 ## 9. F7 — Notificaciones y chat IA (frontend)
@@ -210,6 +219,17 @@ del flujo OAuth de Google. Verificado con `tsc --noEmit`, `vite build`, `eslint`
 | 7.2 | `ChatWidget` lateral, disponible desde cualquier pantalla | CU07 |
 | 7.3 | Streaming de la respuesta, render de tablas, deep links a la entidad | CU07 |
 | 7.4 | Estado de "pensando", manejo de `503` (Ollama caído) y de `429` | CU07 |
+
+**Estado F7.** `NotificationBell` en el header con badge de no leídos, panel agrupado por severidad,
+acciones masivas (marcar leídas / descartar todo) y deep links a la entidad (`sale` → detalle de
+orden, `product` → productos); se refresca cada 60 s. El `ChatWidget` está disponible desde cualquier
+pantalla, persiste el hilo en `localStorage`, restaura el historial vía `GET /chat/threads/{id}/messages`,
+muestra el estado "pensando", renderiza los `tool_calls` y ofrece un reintento controlado ante `429`
+(`Retry-After`) y un mensaje claro ante `503` (Ollama caído).
+
+**Desvío 7.3.** El backend expone el chat como `POST /chat` (request/response) y no como SSE; el
+frontend no usa streaming, pero conserva el resto (estado de pensamiento, `tool_calls` y deep links).
+El streaming queda como mejora posterior sin impacto en la funcionalidad.
 
 ---
 

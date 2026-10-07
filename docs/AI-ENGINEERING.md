@@ -150,6 +150,37 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20261008] F6 + F7: módulos de negocio, notificaciones, exportación y chat — completado
+
+**Objetivo.** Implementar las pantallas de negocio del frontend (CU02–CU06, CU08), la exportación
+que respeta los filtros de pantalla (CU10), la campana de notificaciones (CU09) y el asistente
+lateral (CU07).
+
+**Contexto para el agente.** Contrato de la API confirmado leyendo `backend/app/routers/*` y
+`backend/app/schemas/*`; reglas de `frontend/AGENTS.md` (estado de servidor con TanStack Query,
+estado de URL con search params, nunca copiar datos de servidor a `useState`).
+
+**Prompts clave.**
+1. *"Implementá proveedores, productos, clientes y órdenes como features, cada una con
+   `api.ts`/`hooks.ts`/componentes y los cuatro estados por pantalla, reutilizando `DataTable`."*
+2. *"Agregá el Dashboard consumiendo `/reports/*` con filtro de rango por fecha y KPIs navegables."*
+3. *"Centralizá la exportación CSV/XLSX en un componente que reutilice los filtros activos y
+   descargue el binario con el token Bearer."*
+4. *"Implementá la campana de notificaciones con badge, panel y acciones masivas, y el ChatWidget
+   lateral con restauración de historial y manejo de 503/429."*
+
+**Iteraciones y hallazgos.**
+- El build de F6 falló por un hook mal nombrado (`useStockAdjust` vs `useAdjustStock`) y por un
+  `onSubmit` con tipo desalineado; se introdujo `ProductFormOutput` para separar el payload del
+  formulario del modelo de dominio.
+- La descarga de exportaciones **no** puede ser un `<a href>`: la sesión viaja en el header
+  `Authorization`, así que se hace `GET` con `responseType: "blob"` y se dispara la descarga por
+  `URL.createObjectURL`, respetando el `content-disposition`.
+- El chat del backend **no** expone SSE; se documentó la desviación (§9 del plan) y se priorizó el
+  estado de "pensando", el render de `tool_calls` y el manejo de `429`/`503` sobre el streaming.
+- Se agregaron tests de la normalización de query params (`toQuery`), que es compartida por todos
+  los listados y la exportación.
+
 ### [20261008] F5: shell del frontend (Vite + React + TS) — completado
 
 **Objetivo.** Levantar el frontend (F5) con el modelo de sesión, el cliente HTTP endurecido y el

@@ -1,5 +1,7 @@
 import { Outlet } from "react-router-dom";
 
+import { ChatWidget } from "@/features/chat/components/ChatWidget";
+
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
@@ -13,6 +15,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <ChatWidget />
     </div>
   );
 }
