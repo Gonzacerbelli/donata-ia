@@ -40,6 +40,11 @@ class BusinessRuleError(DomainError):
     message = "Operación inválida"
 
 
+class UnprocessableError(DomainError):
+    status_code = 422
+    message = "Datos inválidos"
+
+
 class DependencyUnavailableError(DomainError):
     status_code = 503
     message = "Servicio no disponible"

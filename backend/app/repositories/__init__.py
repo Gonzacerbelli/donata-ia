@@ -1,3 +1,12 @@
-from . import base, chat, clients, products, sales, stock_moves, users
+from . import base, chat, clients, products, reports, sales, stock_moves, users
 
-__all__ = ["base", "users", "products", "clients", "sales", "stock_moves", "chat"]
+__all__ = [
+    "base",
+    "users",
+    "products",
+    "clients",
+    "sales",
+    "stock_moves",
+    "reports",
+    "chat",
+]

@@ -7,6 +7,12 @@ from .config import settings
 from .core.errors import register_exception_handlers
 from .db import close_db, connect_db, init_indexes, ping
 from .routers import auth as auth_router
+from .routers import clients as clients_router
+from .routers import products as products_router
+from .routers import providers as providers_router
+from .routers import reports as reports_router
+from .routers import sales as sales_router
+from .routers import stock as stock_router
 
 
 @asynccontextmanager
@@ -30,6 +36,12 @@ app.add_middleware(
 register_exception_handlers(app)
 
 app.include_router(auth_router.router)
+app.include_router(providers_router.router)
+app.include_router(products_router.router)
+app.include_router(clients_router.router)
+app.include_router(sales_router.router)
+app.include_router(stock_router.router)
+app.include_router(reports_router.router)
 
 
 @app.get("/health")

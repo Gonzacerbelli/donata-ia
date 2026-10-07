@@ -125,22 +125,22 @@ async def delete_product(db: AsyncIOMotorDatabase, product_id: str) -> bool:
     return await delete_doc(coll(db, "products"), oid)
 
 
-async def atomically_move_stock(
+async def adjust_stock_atomic(
     db: AsyncIOMotorDatabase,
     product_id: str,
     delta: int,
     *,
     require_stock: bool,
-) -> dict | None:
+) -> Product | None:
     oid = valid_oid(product_id)
     if oid is None:
         return None
     query: dict = {"_id": oid}
     if delta < 0 and require_stock:
         query["stock"] = {"$gte": -delta}
-    updated = await coll(db, "products").find_one_and_update(
+    result = await coll(db, "products").find_one_and_update(
         query,
         {"$inc": {"stock": delta}, "$set": {"updated_at": utcnow()}},
         return_document=ReturnDocument.AFTER,
     )
-    return updated
+    return doc_to_model(Product, result)
