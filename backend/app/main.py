@@ -1,12 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .core.errors import register_exception_handlers
 from .db import close_db, connect_db, init_indexes, ping
+from .middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from .routers import auth as auth_router
 from .routers import chat as chat_router
 from .routers import clients as clients_router
@@ -34,12 +36,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin"],
 )
 
 register_exception_handlers(app)
@@ -54,7 +58,21 @@ app.include_router(stock_router.router)
 app.include_router(reports_router.router)
 
 
+async def _check_ollama() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(f"{settings.ollama_base_url}/api/tags")
+        return response.status_code == 200
+    except Exception:  # pragma: no cover - health tolerante a caídas de IA
+        return False
+
+
 @app.get("/health")
 async def health():
-    ok = await ping()
-    return {"status": "ok" if ok else "degraded"}
+    mongo_ok = await ping()
+    ollama_ok = await _check_ollama()
+    healthy = mongo_ok and ollama_ok
+    return {
+        "status": "ok" if healthy else "degraded",
+        "services": {"mongo": mongo_ok, "ollama": ollama_ok},
+    }

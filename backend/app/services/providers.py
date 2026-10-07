@@ -1,7 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..core.errors import ConflictError, NotFoundError
-from ..models import Provider
+from ..models import Provider, utcnow
 from ..repositories import products as products_repo
 from ..schemas.entities import ProviderCreate, ProviderUpdate
 
@@ -20,8 +20,11 @@ async def get_provider_or_404(db: AsyncIOMotorDatabase, provider_id: str) -> Pro
 
 
 async def create_provider(db: AsyncIOMotorDatabase, body: ProviderCreate) -> Provider:
+    now = utcnow()
     data = body.model_dump()
     data["active"] = True
+    data["created_at"] = now
+    data["updated_at"] = now
     return await products_repo.create_provider(db, data)
 
 
@@ -31,6 +34,7 @@ async def update_provider(
     await get_provider_or_404(db, provider_id)
     updates = body.model_dump(exclude_none=True)
     if updates:
+        updates["updated_at"] = utcnow()
         await products_repo.update_provider(db, provider_id, updates)
     return await get_provider_or_404(db, provider_id)
 

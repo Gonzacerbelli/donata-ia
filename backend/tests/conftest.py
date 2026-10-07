@@ -5,6 +5,7 @@ from app.config import settings
 from app.core.security import create_access_token
 from app.db import close_db, connect_db, get_db, init_indexes
 from app.main import app
+from app.middleware import reset_rate_limits
 from app.models import utcnow
 from app.repositories import users as users_repo
 
@@ -12,6 +13,8 @@ from app.repositories import users as users_repo
 @pytest_asyncio.fixture
 async def db():
     settings.mongo_db = settings.mongo_db_test
+    settings.rate_limit_enabled = False
+    reset_rate_limits()
     await connect_db()
     await init_indexes()
     database = await get_db()
