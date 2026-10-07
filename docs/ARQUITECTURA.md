@@ -305,4 +305,4 @@ Dónde tocar para agregar funcionalidad sin romper lo existente:
 | Un tipo de notificación nuevo | Regla en `services/notifications.py` + tipo en el catálogo de `docs/CASOS_DE_USO.md` §9.1 |
 | Una tool nueva del chat IA | Tool en `services/llm/tools.py` + descripción en el system prompt + test |
 | Cambiar el modelo de IA | `OLLAMA_MODEL` en `.env`. **Probar el tool-calling antes**: no todos los 7B se comportan igual |
-| Cambiar la política de rate limit | `core/security.py`, un valor por endpoint desde settings |
+| Cambiar la política de rate limit | `middleware/security.py`, un valor por endpoint desde settings |

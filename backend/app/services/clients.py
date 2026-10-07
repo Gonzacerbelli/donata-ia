@@ -1,7 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..core.errors import ConflictError, NotFoundError
-from ..models import Client
+from ..models import Client, utcnow
 from ..repositories import clients as clients_repo
 from ..schemas.entities import ClientCreate, ClientUpdate
 
@@ -20,12 +20,18 @@ async def get_client_or_404(db: AsyncIOMotorDatabase, client_id: str) -> Client:
 
 
 async def create_client(db: AsyncIOMotorDatabase, body: ClientCreate) -> Client:
-    return await clients_repo.create_client(db, body.model_dump())
+    now = utcnow()
+    data = body.model_dump()
+    data["created_at"] = now
+    data["updated_at"] = now
+    return await clients_repo.create_client(db, data)
 
 
 async def update_client(db: AsyncIOMotorDatabase, client_id: str, body: ClientUpdate) -> Client:
     await get_client_or_404(db, client_id)
-    await clients_repo.update_client(db, client_id, body.model_dump(exclude_unset=True))
+    updates = body.model_dump(exclude_unset=True)
+    updates["updated_at"] = utcnow()
+    await clients_repo.update_client(db, client_id, updates)
     return await get_client_or_404(db, client_id)
 
 

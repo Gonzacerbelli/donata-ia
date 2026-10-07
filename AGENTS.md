@@ -216,8 +216,8 @@ Detalle completo en `docs/SEGURIDAD.md`. Mínimo obligatorio:
 ### Backend
 - [ ] JWT Bearer en **todo** endpoint salvo `/health`, `/auth/google/*` y la documentación.
 - [ ] **CORS con lista blanca explícita**. Nunca `*` con `allow_credentials=True`.
-- [ ] **Rate limiting** por endpoint: login (fuerte), chat, exportación, escritura, general.
-- [ ] Headers de seguridad: HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
+- [x] **Rate limiting** por endpoint: login (fuerte), chat, exportación, escritura, general.
+- [x] Headers de seguridad: HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
       `Referrer-Policy`, `Permissions-Policy`.
 - [ ] Validación estricta de entrada en todos los schemas; límite de tamaño de body.
 - [ ] Errores en español y **sin stack traces** hacia el cliente.
@@ -235,7 +235,7 @@ Detalle completo en `docs/SEGURIDAD.md`. Mínimo obligatorio:
 ### IA
 - [ ] El LLM no accede a la BD: sólo tools tipadas.
 - [ ] Confirmación humana antes de toda escritura.
-- [ ] Rate limit dedicado al chat (un 7B en CPU es un recurso caro y limitado).
+- [x] Rate limit dedicado al chat (un 7B en CPU es un recurso caro y limitado).
 - [ ] Historial de conversaciones para auditoría.
 
 ---

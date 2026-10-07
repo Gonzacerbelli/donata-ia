@@ -150,6 +150,38 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20261007] Endurecimiento: rate limit, headers, health y timestamps — completado
+
+**Objetivo.** Cerrar los pendientes de seguridad de la rúbrica (rate limiting por endpoint,
+headers de seguridad, CORS explícito) y corregir dos defectos de consistencia: documentos
+creados sin `created_at`/`updated_at` y un `/health` que no reflejaba el estado de la IA.
+
+**Contexto dado a la IA.** `docs/SEGURIDAD.md` §3.4 y §5.5, `docs/ARQUITECTURA.md` (tabla de
+rate limit), el checklist no negociable de `AGENTS.md` §6 y el árbol de `backend/AGENTS.md`.
+
+**Prompt (esencial).** *"Implementá el rate limiting por endpoint con `429` + `Retry-After`,
+headers de seguridad, CORS con métodos/headers explícitos, y que `/health` reporte el estado
+de Ollama. De paso, que todo documento creado persista `created_at` y `updated_at`."*
+
+**Iteración.** 1) El rate limit se resolvió con un middleware propio
+(`app/middleware/security.py`) en lugar de `slowapi`: el estado por ventana y la clave por
+usuario/IP quedan en código explícito y **testeable** (se puede bajar un límite desde settings
+y verificar el `429` sin tocar la app). Se quitó `slowapi` de `requirements.txt`.
+2) El orden de middlewares importó: `RateLimit` → `SecurityHeaders` → `CORS`, para que la
+respuesta `429` también salga con headers de seguridad y CORS. 3) En tests el rate limit se
+desactiva por defecto (fixture `db`) y se reinicia el estado de ventanas.
+
+**Resultado.** Middleware de headers + rate limit; `/health` con `{"status","services":{mongo,ollama}}`;
+`created_at`/`updated_at` en `providers`, `clients`, `products` y `sales`; `tests/test_security.py`
+(headers, HSTS en prod, `429`, health exento). **84 tests verdes** y ruff limpio.
+
+**Lección.** Un límite "por endpoint" se defiere a un middleware que corre **antes** de la
+autenticación: cuenta aunque el request termine en `401`. Eso está bien para frenar fuerza
+bruta, pero obliga a keyear por IP (no por usuario) cuando aún no hay token. La clave se
+degrada a usuario sólo si el Bearer es válido.
+
+---
+
 ### [20261006] Servidor MCP propio + agente con tool-calling — completado
 
 **Objetivo.** Que el asistente (CU07) actúe sobre el negocio exclusivamente a través de un

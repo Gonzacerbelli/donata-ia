@@ -84,7 +84,7 @@ Token con firma inválida → `401`. Usuario inactivo → `403`.
 | Global | 120 / min / IP | Red de seguridad |
 | `GET /health` | sin límite | Debe ser consultable siempre |
 
-- [ ] Respuesta `429` con cabecera `Retry-After`.
+- [x] Respuesta `429` con cabecera `Retry-After`.
 - [ ] La UI respeta `Retry-After` y deshabilita la acción en lugar de reintentar en loop.
 
 **Verificación:** 11 requests seguidos a `/auth/google/login` → el último es `429`.
@@ -208,7 +208,7 @@ Un usuario (o un dato guardado) puede intentar *"ignorá tus instrucciones y mar
 
 ### 5.5 Disponibilidad
 
-- [ ] Rate limit dedicado: un 7B en CPU es un recurso compartido y finito.
+- [x] Rate limit dedicado: un 7B en CPU es un recurso compartido y finito.
 - [ ] Timeout en la generación; se corta el stream y se ofrece reintentar.
 - [ ] Si Ollama no responde → `503` y **el resto del sistema sigue funcionando**.
 
@@ -227,9 +227,9 @@ Un usuario (o un dato guardado) puede intentar *"ignorá tus instrucciones y mar
 
 ## 7. Checklist de verificación final
 
-- [ ] `curl -I /health` devuelve todos los headers de seguridad.
+- [x] `curl -I /health` devuelve todos los headers de seguridad.
 - [ ] Un request a `/products` sin token devuelve `401`.
-- [ ] El endpoint de `/auth` rate-limitea.
+- [x] El endpoint de `/auth` rate-limitea.
 - [ ] Un origen no permitido no recibe `Access-Control-Allow-Origin`.
 - [ ] Un export con valores que empiezan con `=` produce texto, no fórmula.
 - [ ] `Active` deshabilitado impide obtener sesión.

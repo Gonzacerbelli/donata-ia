@@ -91,10 +91,11 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
     if total < 0:
         raise UnprocessableError("El total no puede ser negativo")
 
+    now = utcnow()
     sale_doc = {
         "client_id": valid_oid(str(client.id)),
         "client_type": client_type,
-        "date": body.date or utcnow(),
+        "date": body.date or now,
         "items": items,
         "subtotal": subtotal,
         "discount": discount,
@@ -104,6 +105,8 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
         "status": "pendiente",
         "payments": [],
         "notes": body.notes,
+        "created_at": now,
+        "updated_at": now,
     }
     sale = await sales_repo.create_sale(db, sale_doc)
 

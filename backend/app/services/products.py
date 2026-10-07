@@ -35,10 +35,12 @@ async def _ensure_provider_exists(db: AsyncIOMotorDatabase, provider_id: str) ->
 
 async def create_product(db: AsyncIOMotorDatabase, body: ProductCreate) -> Product:
     await _ensure_provider_exists(db, body.provider_id)
+    now = utcnow()
     data = body.model_dump()
     data["provider_id"] = valid_oid(body.provider_id)
     data["active"] = True
-    data["updated_at"] = utcnow()
+    data["created_at"] = now
+    data["updated_at"] = now
     return await products_repo.create_product(db, data)
 
 

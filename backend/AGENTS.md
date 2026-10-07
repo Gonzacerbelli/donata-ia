@@ -8,7 +8,7 @@
 
 Python 3.12 · FastAPI · Pydantic v2 · Motor (MongoDB async) · PyJWT · python-multipart ·
 LangChain + langchain-ollama · **fastmcp + langchain-mcp-adapters** · **chromadb + embeddings
-HuggingFace** · openpyxl · slowapi · pytest · httpx
+HuggingFace** · openpyxl · pytest · httpx
 
 ## Estructura
 
@@ -21,7 +21,7 @@ backend/
 │   ├── dependencies.py    get_current_user
 │   ├── core/
 │   │   ├── errors.py      excepciones de dominio + handler
-│   │   ├── security.py    rate limit, headers, CORS
+│   │   ├── security.py    JWT (access), OAuth state
 │   │   └── validation.py  validadores reutilizables
 │   ├── models/            modelos de dominio (Pydantic)
 │   ├── schemas/           request / response por dominio
@@ -30,7 +30,7 @@ backend/
 │   │   └── llm/           guardrails, vector_store, rag, agent, assistant
 │   ├── routers/           HTTP
 │   ├── mcp_server.py      servidor MCP donata-mcp (tools de negocio)
-│   └── middleware/        rate limit, request id, context
+│   └── middleware/        rate limit por endpoint, headers de seguridad
 ├── knowledge/             manual operativo (fuente del RAG)
 ├── scripts/               ingest_kb.py, e2e_check.py
 ├── tests/
@@ -107,7 +107,10 @@ no la puede reutilizar.
 
 ## Seguridad — checklist
 
-- [ ] `get_current_user` en todo endpoint salvo `/health`, `/auth/google/*` y docs.
+- [x] `get_current_user` en todo endpoint salvo `/health`, `/auth/google/*` y docs.
+- [x] Rate limit por endpoint (login, chat, export, escritura, global) con `429` + `Retry-After`.
+- [x] Headers de seguridad (HSTS en prod, `X-Content-Type-Options`, `X-Frame-Options`,
+      `Referrer-Policy`, `Permissions-Policy`).
 - [ ] CORS desde `CORS_ORIGINS`. Nunca `*` con `allow_credentials=True`.
 - [ ] Rate limit: auth 10/min · chat 20/min · export 10/min · escritura 60/min · global 120/min.
 - [ ] Headers: HSTS (prod), `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
