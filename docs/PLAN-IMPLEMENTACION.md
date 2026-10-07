@@ -12,8 +12,8 @@
 | **F1** | Validación docente de los 10 casos de uso | ✅ **Completada** (feedback incorporado) |
 | **F2** | Scaffolding: Docker, backend base (config, seguridad, modelos) | ✅ **Completada** |
 | **F3** | Backend de negocio: auth, proveedores, productos, clientes, órdenes, stock | ✅ **Completada** |
-| **F4** | Backend de soporte: reports, historial de chat, RAG, servidor MCP + agente | ✅ **Completada** (notificaciones y exports pendientes) |
-| **F5** | Frontend: base, auth, layout | ⬜ Pendiente |
+| **F4** | Backend de soporte: reports, historial de chat, RAG, servidor MCP + agente | ✅ **Completada** (incluye notificaciones y exports) |
+| **F5** | Frontend: base, auth, layout | ✅ **Completada** |
 | **F6** | Frontend: módulos de negocio (dashboard, productos, clientes, órdenes, proveedores) | ⬜ Pendiente |
 | **F7** | Frontend: notificaciones, exportación, chat IA | ⬜ Pendiente |
 | **F8** | Seed de datos, tests E2E, hardening, README final | ⬜ Pendiente |
@@ -128,7 +128,7 @@ Orden dentro de la fase: primero los independentemente verificables, después el
 
 ---
 
-## 6. F4 — Backend de soporte
+## 6. F4 — Backend de soporte (✅ completada)
 
 | # | Tarea | CU | Verificación |
 |---|---|---|---|
@@ -168,17 +168,24 @@ CSV/XLSX** (CU10). **101 tests verdes** y chequeo E2E real con Ollama (`qwen2.5:
 
 ---
 
-## 7. F5 — Frontend base
+## 7. F5 — Frontend base (✅ completada)
 
-| Tarea | Detalle |
-|---|---|
-| Vite + React + TS | Configuración estricta de TypeScript |
-| Tailwind + componentes base | Tema, tokens de color, tipografía |
-| Cliente HTTP | Axios o fetch con interceptores: token, `401` → logout, `429` → `Retry-After`, normalización de errores |
-| Router | Rutas públicas y protegidas con guard |
-| Estado de sesión | Contexto de auth + persistencia del token + expiración en cliente |
-| Layout | Sidebar de navegación, header con campana de notificaciones, contenedor responsive |
-| Formateo | ARS sin decimales, fechas DD/MM/AAAA, timezone Argentina |
+| Tarea | Detalle | Estado |
+|---|---|---|
+| Vite + React + TS | Configuración estricta de TypeScript (`strict`, sin `any`) | ✅ |
+| Tailwind + componentes base | Tema, tokens de color, tipografía | ✅ |
+| Cliente HTTP | Axios con interceptores: token, `401` → logout, `429` → `Retry-After`, normalización de errores | ✅ |
+| Router | Rutas públicas y protegidas con guard | ✅ |
+| Estado de sesión | Contexto de auth + persistencia del token + expiración en cliente | ✅ |
+| Layout | Sidebar de navegación, header con campana (placeholder F7), contenedor responsive | ✅ |
+| Formateo | ARS sin decimales, fechas DD/MM/AAAA, timezone Argentina | ✅ |
+
+**Estado F5.** Proyecto Vite + React 19 + TS + Tailwind v4 en `frontend/`. Cliente HTTP con
+normalización de errores (`ApiError`) y handlers por código; `AuthProvider` con persistencia
+en `localStorage` y revalidación de sesión; `ProtectedRoute` con estados loading/anónimo/autenticado;
+layout con sidebar y header; componentes reutilizables (`Button`, `Input`, `Select`, `Modal`,
+`DataTable` con los cuatro estados: cargando/vacío/error/datos). Login local funcional y arranque
+del flujo OAuth de Google. Verificado con `tsc --noEmit`, `vite build`, `eslint` y Vitest.
 
 ---
 

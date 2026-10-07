@@ -150,6 +150,34 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20261008] F5: shell del frontend (Vite + React + TS) — completado
+
+**Objetivo.** Levantar el frontend (F5) con el modelo de sesión, el cliente HTTP endurecido y el
+layout protegido, sin implementar todavía los módulos de negocio.
+
+**Contexto para el agente.** `frontend/AGENTS.md` fija las reglas (estructura por feature,
+cuatro estados por pantalla, sin comentarios, identificadores en inglés y textos en español) y
+`docs/PLAN-IMPLEMENTACION.md` §7 lista los entregables de la fase.
+
+**Prompts clave.**
+1. *"Armá el scaffold Vite + React 19 + TS estricto + Tailwind v4 con Vitest y ESLint, y un cliente
+   Axios con interceptores que normalicen 401/403/404/409/422/429/5xx."*
+2. *"Implementá AuthProvider con persistencia del token y revalidación de sesión vía `/auth/me`,
+   `ProtectedRoute` con estados loading/anónimo/autenticado y el layout con sidebar y header."*
+
+**Iteraciones y hallazgos.**
+- `formatDate` parseaba las fechas sólo-fecha (`YYYY-MM-DD`) como UTC y, al formatearlas en
+  `America/Argentina/Buenos_Aires`, **retrocedían un día**. Se detectó con un test y se corrigió
+  tratando el patrón de fecha pura de forma determinista.
+- El `Spinner` dentro del `Button` necesitaba un tamaño menor; se resolvió por clase utilitaria.
+- `erasableSyntaxOnly` no existe en TypeScript 5.6; se quitó del `tsconfig`.
+- El primer `Input` con `forwardRef` quedó mal formado; se reescribió con una firma limpia.
+- Ruta de callback OAuth (`/auth/callback?token=…`) implementada en el cliente; el backend aún
+  devuelve el token como JSON, por lo que la redirección al SPA queda como refinamiento de CU01.
+
+**Verificación.** `tsc --noEmit` sin errores, `vite build` correcto, `eslint .` limpio y tests de
+Vitest verdes (formateo + guard de sesión). El backend completo sigue con su suite verde.
+
 ### [20260710] Cierre de F4: exportación CSV/XLSX y notificaciones — completado
 
 **Objetivo.** Completar el backend de soporte (F4.2 y F4.3): exportación que respete los filtros
