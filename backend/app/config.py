@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
 
-    enable_local_login: bool = True
+    enable_local_login: bool = False
     local_admin_username: str = "admin"
     local_admin_password: str = "cambiar-esta-clave"
 

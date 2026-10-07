@@ -32,7 +32,7 @@ async def update_provider(
     db: AsyncIOMotorDatabase, provider_id: str, body: ProviderUpdate
 ) -> Provider:
     await get_provider_or_404(db, provider_id)
-    updates = body.model_dump(exclude_none=True)
+    updates = body.model_dump(exclude_unset=True)
     if updates:
         updates["updated_at"] = utcnow()
         await products_repo.update_provider(db, provider_id, updates)

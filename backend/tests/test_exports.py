@@ -137,6 +137,26 @@ async def test_csv_escapes_formula_injection(auth_client):
     assert rows[1][0] == "'=1+1"
 
 
+async def test_xlsx_forces_text_cells(auth_client):
+    provider = (await auth_client.post("/providers", json={"name": "Prov"})).json()
+    await auth_client.post(
+        "/products",
+        json={
+            "name": "=HYPERLINK(1)",
+            "price": 100,
+            "stock": 1,
+            "provider_id": provider["id"],
+        },
+    )
+    response = await auth_client.get("/exports/productos.xlsx")
+    assert response.status_code == 200
+    sheet = load_workbook(io.BytesIO(response.content)).active
+    cell = sheet.cell(row=2, column=1)
+    assert cell.value == "=HYPERLINK(1)"
+    assert cell.data_type == "s"
+    assert cell.number_format == "@"
+
+
 async def test_export_unknown_entity_returns_422(auth_client):
     assert (await auth_client.get("/exports/foo.csv")).status_code == 422
 

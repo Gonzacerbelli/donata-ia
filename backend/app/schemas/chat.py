@@ -38,7 +38,20 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
 
 
+class PendingActionOut(BaseModel):
+    token: str
+    tool: str
+    args: dict = Field(default_factory=dict)
+    summary: str
+
+
 class ChatResponse(BaseModel):
     thread_id: str
     tool_calls: list[dict] = Field(default_factory=list)
     response: str
+    pending_action: PendingActionOut | None = None
+
+
+class ChatConfirmRequest(BaseModel):
+    thread_id: str = Field(min_length=1, max_length=80)
+    token: str = Field(min_length=1, max_length=64)

@@ -8,7 +8,7 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from ...config import settings
@@ -23,10 +23,19 @@ Reglas:
   disponibles; nunca inventes datos.
 - Para dudas sobre el funcionamiento del negocio, usá la herramienta de documentación.
 - Trabajás con pesos argentinos enteros; no uses decimales.
+- Las herramientas de escritura no están disponibles: sólo podés consultar.
+- Para crear, modificar, cancelar o registrar algo, usá `proponer_accion` con
+  `herramienta` = nombre de la operación, `argumentos` = objeto JSON con los
+  argumentos de esa operación (por ejemplo {"nombre": "Nora", "telefono": "1199998888"})
+  y `resumen` = qué se va a hacer en una frase.
+  Nada se ejecuta hasta que el usuario lo confirme en la pantalla.
+- Cuando propongas una acción, terminá pidiendo la confirmación explícita del usuario.
 - Si una consulta está fuera del negocio, aclaralo amablemente.
 """
 
 MAX_STEPS = 6
+
+WRITE_TOOLS = {"crear_cliente", "crear_venta", "registrar_pago", "cancelar_venta"}
 
 
 def _server_env() -> dict[str, str]:
@@ -60,6 +69,28 @@ async def load_tools() -> list[BaseTool]:
     return await client.get_tools()
 
 
+def _propose_tool() -> BaseTool:
+    @tool
+    def proponer_accion(herramienta: str, argumentos: dict | str, resumen: str) -> str:
+        """Propone una acción de escritura que el usuario debe confirmar en la pantalla.
+
+        No ejecuta nada. `herramienta` es el nombre de la operación (crear_cliente,
+        crear_venta, registrar_pago, cancelar_venta), `argumentos` es el objeto JSON
+        con los argumentos de esa operación y `resumen` describe la acción.
+        """
+        return (
+            "Propuesta registrada. Respondé al usuario resumiendo la acción y pidiéndole "
+            "que confirme en la pantalla; todavía no se ejecutó nada."
+        )
+
+    return proponer_accion
+
+
+async def _read_tools() -> list[BaseTool]:
+    tools = [tool for tool in await load_tools() if tool.name not in WRITE_TOOLS]
+    return [*tools, _propose_tool()]
+
+
 def _to_lc_messages(history: list[tuple[str, str]]) -> list[BaseMessage]:
     messages: list[BaseMessage] = []
     for role, content in history:
@@ -73,7 +104,8 @@ def _to_lc_messages(history: list[tuple[str, str]]) -> list[BaseMessage]:
 async def run_agent(
     message: str, history: list[tuple[str, str]] | None = None
 ) -> tuple[str, list[dict[str, Any]]]:
-    tools = await load_tools()
+    tool_calls_log: list[dict[str, Any]] = []
+    tools = await _read_tools()
     tool_map = {tool.name: tool for tool in tools}
     llm = get_llm(temperature=0).bind_tools(tools)
 
@@ -81,7 +113,6 @@ async def run_agent(
     messages.extend(_to_lc_messages(history or []))
     messages.append(HumanMessage(content=message))
 
-    tool_calls_log: list[dict[str, Any]] = []
     for _ in range(MAX_STEPS):
         ai_message = await llm.ainvoke(messages)
         messages.append(ai_message)

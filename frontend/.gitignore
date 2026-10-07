@@ -4,3 +4,6 @@ dist-ssr
 coverage
 *.local
 .env
+playwright-report
+test-results
+blob-report

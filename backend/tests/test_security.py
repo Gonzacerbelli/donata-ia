@@ -60,3 +60,37 @@ async def test_health_is_exempt_from_rate_limit(client):
         settings.rate_limit_enabled = False
         settings.ollama_base_url = original
     assert [r.status_code for r in responses] == [200, 200, 200]
+
+
+async def test_oversized_body_is_rejected(client):
+    payload = "x" * 2_100_000
+    response = await client.post(
+        "/auth/login",
+        content=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+    assert "demasiado grande" in response.json()["detail"]
+
+
+async def test_local_login_disabled_returns_401(client):
+    settings.enable_local_login = False
+    try:
+        response = await client.post(
+            "/auth/login", json={"username": "admin", "password": "cambiar-esta-clave"}
+        )
+    finally:
+        settings.enable_local_login = True
+    assert response.status_code == 401
+
+
+async def test_local_login_blocked_in_production(client):
+    original_env = settings.env
+    settings.env = "production"
+    try:
+        response = await client.post(
+            "/auth/login", json={"username": "admin", "password": "cambiar-esta-clave"}
+        )
+    finally:
+        settings.env = original_env
+    assert response.status_code == 401

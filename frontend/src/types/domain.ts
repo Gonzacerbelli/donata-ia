@@ -154,8 +154,16 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export interface PendingAction {
+  token: string;
+  tool: string;
+  args: Record<string, unknown>;
+  summary: string;
+}
+
 export interface ChatResponse {
   thread_id: string;
   tool_calls: Record<string, unknown>[];
   response: string;
+  pending_action: PendingAction | null;
 }

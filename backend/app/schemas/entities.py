@@ -10,7 +10,7 @@ class ProviderCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     contact: str | None = Field(default=None, max_length=120)
     phone: str | None = Field(default=None, max_length=40)
-    email: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200, pattern=r"[^@\s]+@[^@\s]+\.[^@\s]+")
     cuit: str | None = Field(default=None, max_length=20)
     notes: str | None = None
 
@@ -19,7 +19,7 @@ class ProviderUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     contact: str | None = Field(default=None, max_length=120)
     phone: str | None = Field(default=None, max_length=40)
-    email: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200, pattern=r"[^@\s]+@[^@\s]+\.[^@\s]+")
     cuit: str | None = Field(default=None, max_length=20)
     notes: str | None = None
     active: bool | None = None
@@ -55,7 +55,7 @@ class ProductUpdate(BaseModel):
 class ClientCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     phone: str | None = Field(default=None, max_length=40)
-    email: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200, pattern=r"[^@\s]+@[^@\s]+\.[^@\s]+")
     instagram: str | None = Field(default=None, max_length=120)
     address: str | None = None
     type: Literal["minorista", "mayorista", "ambos"] = "minorista"
@@ -65,7 +65,7 @@ class ClientCreate(BaseModel):
 class ClientUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     phone: str | None = Field(default=None, max_length=40)
-    email: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=200, pattern=r"[^@\s]+@[^@\s]+\.[^@\s]+")
     instagram: str | None = Field(default=None, max_length=120)
     address: str | None = None
     type: Literal["minorista", "mayorista", "ambos"] | None = None

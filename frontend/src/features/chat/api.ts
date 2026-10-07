@@ -6,6 +6,13 @@ export const chatApi = {
     const { data } = await api.post<ChatResponse>("/chat", { thread_id: threadId, message });
     return data;
   },
+  async confirm(threadId: string, token: string): Promise<ChatResponse> {
+    const { data } = await api.post<ChatResponse>("/chat/confirm", {
+      thread_id: threadId,
+      token,
+    });
+    return data;
+  },
   async threads(): Promise<ChatThread[]> {
     const { data } = await api.get<ChatThread[]>("/chat/threads");
     return data;
