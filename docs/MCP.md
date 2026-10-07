@@ -18,13 +18,72 @@ En este proyecto el MCP se usa como **capa de contexto del proceso de desarrollo
 agentes acceden a documentación, al sistema de archivos y a las fuentes de referencia a través
 de servidores MCP, en lugar de adivinar o de pedir que se le pegue el contenido.
 
-> **Distinción importante para la nota:** el chatbot de la aplicación (CU07) **no** usa MCP.
-> Usa LangChain con tools propias contra la API interna. MCP se usa en el **entorno de
-> desarrollo con IA**. Son dos cosas distintas y conviene no mezclarlas al explicarlas.
+> **Distinción importante para la nota — hay DOS planos de MCP en este proyecto:**
+>
+> 1. **MCP dentro del producto:** el asistente del sistema (CU07) consume sus herramientas de
+>    negocio a través de un servidor MCP **propio** llamado `donata-mcp` (§2.0). Esta es la
+>    integración de MCP en la **arquitectura de la aplicación**.
+> 2. **MCP en el entorno de desarrollo:** los agentes que *construyen* el sistema usan servidores
+>    MCP externos (context7, filesystem, playwright, sequential-thinking, github) para obtener
+>    contexto y verificar el trabajo (§2.1–§2.5).
+>
+> Son complementarios: uno se evalúa como arquitectura, el otro como esquema de trabajo. En la
+> entrega conviene mostrarlos como dos planos separados.
 
 ---
 
 ## 2. Servidores MCP del proyecto
+
+### 2.0 `donata-mcp` — interno · el asistente de la aplicación
+
+| | |
+|---|---|
+| **Tipo** | **Interno** (código propio, servidor MCP propio) |
+| **Implementación** | `backend/app/mcp_server.py` con **FastMCP** |
+| **Transporte** | `stdio` (el backend lo lanza como subproceso vía `langchain-mcp-adapters`) |
+| **Endpoint HTTP** | Ninguno: no se expone a la red, sólo al proceso del agente |
+| **Qué expone** | 12 herramientas de negocio en español que envuelven los **services** ya validados |
+
+**Rol en el producto.** Es la forma en que el agente CU07 obtiene sus *tools*: en vez de
+declarar funciones sueltas en el código del agente, el negocio se expone como un servidor MCP y
+el agente lo consume con `MultiServerMCPClient`. Ventaja concreta: las herramientas se pueden
+probar de forma aislada (hablando MCP por stdio) y el agente queda desacoplado de la
+implementación.
+
+**Herramientas expuestas** (`donata-mcp`):
+
+| Tool | Qué hace | Envuelve |
+|---|---|---|
+| `buscar_productos` | Lista/filtra el catálogo | `services/products` + `repositories/products` |
+| `buscar_productos_semantico` | Búsqueda semántica de productos | `services/llm/vector_store` (Chroma) |
+| `consultar_producto` | Ficha de un producto | `services/products` |
+| `consultar_precios` | Precio minorista/mayorista resuelto | `services/products` |
+| `listar_clientes` | Lista/filtra clientes | `services/clients` |
+| `crear_cliente` | Alta de cliente | `services/clients` |
+| `listar_ventas` | Lista/filtra ventas | `services/sales` |
+| `crear_venta` | Crea una venta (ítems mixtos, precio dual) | `services/sales` |
+| `registrar_pago` | Registra un pago | `services/sales` |
+| `cancelar_venta` | Cancela y restaura stock | `services/sales` + `services/stock` |
+| `resumen_negocio` | Agregados del dashboard | `services/reports` |
+| `consultar_documentacion` | Responde desde el manual (RAG) | `services/llm/rag` |
+
+> **Seguridad:** el agente **no** toca Mongo. Cada tool pasa por el service, que aplica las
+> mismas validaciones y reglas de negocio que la API (stock atómico, montos enteros, saldo
+> derivado). Es la materialización de la regla 3.4 de `AGENTS.md`.
+
+**Cómo se consume** (`backend/app/services/llm/agent.py`):
+
+```python
+client = MultiServerMCPClient({
+    "donata": {
+        "command": "python",
+        "args": ["-m", "app.mcp_server"],
+        "transport": "stdio",
+        "env": server_env,           # MONGO_URI, CHROMA_DIR, OLLAMA_BASE_URL, ...
+    }
+})
+tools = await client.get_tools()
+```
 
 ### 2.1 `context7` — externo · Documentación de librerías actualizado
 
@@ -118,6 +177,24 @@ obvia** y hace falta desarmar el problema antes de decidir:
 
 ---
 
+### 2.5 `github` — **externo remoto** · Gestión del repositorio y de los PR
+
+| | |
+|---|---|
+| **Tipo** | **Externo remoto** (`type: remote`, servicio hospedado) |
+| **URL** | `https://api.githubcopilot.com/mcp/` |
+| **Autenticación** | header `Authorization: Bearer {env:GITHUB_PAT}` (PAT por variable de entorno) |
+| **Qué expone** | Operaciones del repositorio: ramas, commits, issues, pull requests, revisiones |
+
+**Rol en el desarrollo.** Es el que cierra el ciclo del flujo spec-driven por ramas: el agente
+crea la rama de una tarea, commitea, abre el pull request y lo consulta sin salir del editor. En
+este proyecto, cada hito se integró por PR con merge squash (ver `docs/AI-ENGINEERING.md`).
+
+> **Este es el único servidor MCP puramente remoto** del proyecto. Los demás son paquetes de
+> terceros ejecutados localmente vía `npx`.
+
+---
+
 ## 3. Configuración
 
 La configuración vive en `opencode.json`, en el bloque `mcp`:
@@ -150,6 +227,12 @@ La configuración vive en `opencode.json`, en el bloque `mcp`:
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
       "enabled": true
+    },
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": { "Authorization": "Bearer {env:GITHUB_PAT}" },
+      "enabled": true
     }
   }
 }
@@ -177,32 +260,58 @@ La primera invocación de cada servidor descarga el paquete. Conviene ejecutar c
 
 ## 4. Cobertura del requisito
 
+**Plano A — MCP en el producto:**
+
+| Servidor | Tipo | Rol | Estado |
+|---|---|---|---|
+| `donata-mcp` | **Interno** (implementación propia) | Tools del asistente CU07 | Probado (tests por stdio + E2E real) |
+
+**Plano B — MCP en el entorno de desarrollo:**
+
 | Requisito | Servidor | Tipo | Estado |
 |---|---|---|---|
-| Servidor MCP #1 | `context7` | **Externo** | Configurado |
-| Servidor MCP #2 | `filesystem` | **Externo** | Configurado |
-| Servidor MCP #3 | `playwright` | **Externo** | Configurado |
-| Servidor MCP #4 | `sequential-thinking` | **Externo** | Configurado |
+| Servidor MCP #1 | `context7` | Externo (local) | Configurado |
+| Servidor MCP #2 | `filesystem` | Externo (local) | Configurado |
+| Servidor MCP #3 | `playwright` | Externo (local) | Configurado |
+| Servidor MCP #4 | `sequential-thinking` | Externo (local) | Configurado |
+| Servidor MCP #5 | `github` | **Externo remoto** | Configurado |
 
-**4 servidores, todos externos,, muy por encima del mínimo de 2.** El requisito de "al menos 1 externo"
-queda cubierto con holgura.
+**Cobertura:** 1 servidor MCP propio en la arquitectura del producto + 5 servidores MCP en el
+entorno de desarrollo, **uno de ellos remoto**. El requisito (≥ 2 servidores, ≥ 1 externo) queda
+cubierto con holgura, y además hay integración de MCP *dentro del producto* (no sólo en el
+tooling de desarrollo).
 
 ---
 
 ## 5. Cómo se demuestra el uso en la entrega
 
-Para que la demostración sea convincente, el README final debe incluir **un ejemplo concreto
-por servidor**, con la pregunta o la acción y lo que el servidor aportó:
+**Plano A — `donata-mcp` (producto).** Se demuestra con el chequeo E2E real:
 
-| Servidor | Ejemplo de uso a documentar | Qué aporta |
+```bash
+docker compose run --rm --no-deps api python -m scripts.e2e_check
+```
+
+El script pide *"¿Cuántos productos tengo en el catálogo y cuánto stock hay?"* contra Ollama
+real; el agente elige la herramienta `buscar_productos`, la ejecuta por MCP y redacta la
+respuesta con datos reales de Mongo. La salida imprime las herramientas usadas:
+
+```
+Respuesta: En tu catálogo actualmente hay ... con stock ...
+Herramientas usadas: ['buscar_productos']
+```
+
+Además hay pruebas unitarias que hablan MCP por **stdio real** (`backend/tests/test_mcp_server.py`)
+y del orquestador del agente (`backend/tests/test_assistant.py`).
+
+**Plano B — servidores de desarrollo.** Un ejemplo concreto por servidor:
+
+| Servidor | Ejemplo de uso | Qué aporta |
 |---|---|---|
-| `context7` | Consulta de la API de `ChatOllama` para tool calling | Versión correcta de la API, no la memorizada |
-| `filesystem` | Lectura de `donata-deco/backend/app/routers/sales.py` | Lógica heredada sin copiar a mano |
-| `playwright` | Recorrido del flujo de creación de orden | Evidencia de que la UI funciona de verdad |
-| `sequential-thinking` | Diseño del mecanismo de stock atómico | Decisión argumentada, no arbitraria |
-
-**Pendiente:** completar la sección 5 con los ejemplos reales a medida que se usen. Acá está la
-estructura; el contenido se llena durante el desarrollo.
+| `context7` | Consulta de la API de `ChatOllama` y de `MultiServerMCPClient` | Versión correcta de la API, no la memorizada |
+| `filesystem` | Lectura del backend de `donata-deco` | Lógica heredada sin copiar a mano |
+| `playwright` | Recorrido del flujo de creación de orden (frontend) | Evidencia de que la UI funciona de verdad |
+| `sequential-thinking` | Diseño del stock atómico y de las tools del agente | Decisión argumentada, no arbitraria |
+| `github` | Creación de rama + PR + merge squash de cada hito | Trazabilidad del proceso de desarrollo |
 
 ---
 
@@ -216,4 +325,8 @@ Vale más reconocer los límites que inventar capacidades:
 - `npx -y` descarga el paquete la primera vez: hace falta conexión en ese momento, aunque el
   resto del desarrollo sea offline.
 - Un servidor MCP que no se usó es configuración muerta. Por eso la columna "Estado" debe
-  decir "probado" y no "configurado" cuando se termine el proyecto.
+  decir "probado" y no "configurado" cuando se termine el proyecto. Hoy el servidor del
+  producto (`donata-mcp`) está **probado** (tests por stdio + E2E con Ollama real); los
+  servidores de desarrollo quedan como "configurados" hasta que se registre su uso concreto.
+- `donata-mcp` usa **stdio**, no HTTP: no abre puertos ni expone el negocio a la red. Es
+  deliberado — el único cliente es el propio agente del backend.

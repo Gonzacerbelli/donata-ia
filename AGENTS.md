@@ -34,15 +34,16 @@ orquestación de agentes, prompts deliberados, iteraciones y verificación autom
 | Ítem | Estado |
 |---|---|
 | Especificación de los 10 casos de uso | ✅ **Completa** — `docs/CASOS_DE_USO.md` y `docs/CASOS_DE_USO.pdf` |
-| Validación docente de los CU | ⏳ **Pendiente.** El usuario espera el feedback antes de implementar |
+| Validación docente de los CU | ⏳ **Pendiente** (el feedback llegó y se incorporó al alcance) |
 | Estructura del repo | ✅ Creada (carpetas + `.gitignore` + `.env.example`) |
-| Configuración de agentes/IA | ✅ Este `AGENTS.md` + `opencode.json` + `.opencode/{agent,command,skills}` |
-| Backend FastAPI | ❌ No implementado |
+| Configuración de agentes/IA | ✅ `AGENTS.md` + `opencode.json` + `.opencode/{agent,command,skills}` |
+| Docker / compose | ✅ `docker-compose.yml` (api + mongo) + `backend/Dockerfile` |
+| Backend FastAPI | ✅ Núcleo + negocio + soporte: auth, proveedores, productos, clientes, ventas, stock, reportes, historial de chat |
+| IA: RAG + agente MCP | ✅ `donata-mcp` (12 tools) + agente LangChain con tool-calling + RAG (Chroma) — E2E real con Ollama |
 | Frontend React | ❌ No implementado |
-| Docker / compose | ❌ No implementado |
-| Seed / datos de prueba | ❌ No implementado |
-| Tests | ❌ No implementado |
-| README final del TP | ❌ Plantilla en `docs/README-TPL.md` |
+| Seed / datos de prueba | ❌ No implementado (hay `scripts/e2e_check.py` para demo) |
+| Tests | ✅ 80 tests verdes (backend); frontend pendiente |
+| README final del TP | ⬜ Plantilla en `docs/README-TPL.md` |
 
 ### 2.1 Código heredado reutilizable
 
@@ -103,11 +104,20 @@ El asistente usa un **modelo local de ~7B parámetros** (Ollama). No hay API de 
 - **Si Ollama no está disponible, el sistema debe operar con normalidad** y el chat informar
   que no está disponible. La IA es un accesorio, no un punto único de falla.
 
-### 3.4 El asistente no toca la base de datos
+### 3.4 El asistente no toca la base de datos — actúa por MCP
 
-Sólo puede actuar mediante **tools tipadas** que invocan la lógica de negocio ya validada de la
-API. No ejecuta SQL, ni código, ni consultas arbitrarias. Toda tool valida sus argumentos con
-Pydantic. Toda acción de escritura pide confirmación humana primero.
+Sólo puede actuar mediante **tools tipadas** que invocan la lógica de negocio ya validada. No
+ejecuta SQL, ni código, ni consultas arbitrarias. Toda acción de escritura pide confirmación
+humana primero.
+
+- Las tools se exponen en un **servidor MCP propio** (`backend/app/mcp_server.py`, FastMCP,
+  transporte stdio) y el agente las consume con `langchain-mcp-adapters`. Ver `docs/MCP.md` §2.0.
+- Cada tool **envuelve un `service`**, nunca un repositorio directo: hereda las mismas reglas
+  (stock atómico, montos enteros, saldo derivado) que la API.
+- La recuperación de documentación (RAG) es local: **Chroma + embeddings HuggingFace**. Nunca
+  una API cloud.
+- El servidor MCP es un **subproceso del backend**, no un servicio de red: no se expone a
+  Internet ni a la red del compose.
 
 ### 3.5 Doble precio minorista / mayorista
 
@@ -158,7 +168,7 @@ hay producto de catálogo que los represente. Ambos tipos conviven en la misma o
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS + TanStack Query + React Router + Zod |
 | Backend | Python 3.12 + FastAPI + Pydantic v2 + Motor + PyJWT |
 | BD | MongoDB Atlas (SRV) |
-| IA | LangChain + `langchain-ollama` → Ollama local ~7B |
+| IA | LangChain + `langchain-ollama` (Ollama ~7B) + **MCP** (`fastmcp` + `langchain-mcp-adapters`) + RAG (`chromadb` + embeddings HuggingFace) |
 | Infra | Docker + Docker Compose |
 | Tests | pytest + pytest-asyncio + httpx (backend), Vitest (frontend) |
 
@@ -284,6 +294,10 @@ donata-ia/
 │   ├── MCP.md             → servidores MCP y su rol (TP)
 │   └── adr/               → Architecture Decision Records
 ├── backend/               → FastAPI
+│   ├── app/mcp_server.py  → servidor MCP `donata-mcp` (tools del asistente)
+│   ├── app/services/llm/  → agente, RAG, guardrails, vector store
+│   ├── knowledge/         → manual operativo (fuente del RAG)
+│   └── scripts/           → ingest_kb.py, e2e_check.py
 ├── frontend/              → React + Vite
 ├── scripts/               → utilidades (incluye md2pdf.py)
 └── specs/                 → especificaciones por CU (flujo SDD)

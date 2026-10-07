@@ -59,11 +59,18 @@ cuestionan, se les escribe un ADR acá.
 | 7 | Stock atómico con auditoría | `AGENTS.md` §3.9 |
 | 8 | Spec-Driven Development | skill `sdd-openspec` |
 
+## ADRs escritos
+
+| # | Decisión | Archivo |
+|---|---|---|
+| 0001 | Las tools del agente se exponen en un servidor MCP propio | `0001-tools-del-agente-por-mcp.md` |
+| 0002 | Atomicidad de stock por `update` condicional (sin transacciones) | `0002-atomicidad-de-stock.md` |
+| 0003 | Búsqueda vectorial local con colecciones separadas (manual / catálogo) | `0003-busqueda-vectorial-local.md` |
+
 ## Decisiones que van a necesitar ADR durante el desarrollo
 
 | Decisión pendiente | Por qué va a necesitar ADR |
 |---|---|
-| Mecanismo exacto de atomicidad de stock | Hay alternativas (transacciones, optimistic locking, update condicional) con costos distintos |
 | Dónde vive el estado de las notificaciones (derivado vs persistido) | Afecta consistencia y complejidad |
 | Estrategia de token del frontend (`localStorage` vs cookie `httpOnly`) | Es una decisión de seguridad con trade-off real |
 | Modelo de 7B elegido | El comportamiento de tool-calling varía mucho entre modelos del mismo tamaño |

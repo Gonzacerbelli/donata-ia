@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from langchain_core.messages import (
@@ -10,6 +11,7 @@ from langchain_core.messages import (
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+from ...config import settings
 from .rag import get_llm
 
 SYSTEM_PROMPT = """Sos el asistente operativo de Donata, un negocio de alfombras y textiles.
@@ -27,6 +29,19 @@ Reglas:
 MAX_STEPS = 6
 
 
+def _server_env() -> dict[str, str]:
+    return {
+        **os.environ,
+        "MONGO_URI": settings.mongo_uri,
+        "MONGO_DB": settings.mongo_db,
+        "CHROMA_DIR": settings.chroma_dir,
+        "EMBEDDING_MODEL": settings.embedding_model,
+        "OLLAMA_BASE_URL": settings.ollama_base_url,
+        "OLLAMA_MODEL": settings.ollama_model,
+        "RAG_TOP_K": str(settings.rag_top_k),
+    }
+
+
 def build_mcp_client() -> MultiServerMCPClient:
     return MultiServerMCPClient(
         {
@@ -34,6 +49,7 @@ def build_mcp_client() -> MultiServerMCPClient:
                 "command": "python",
                 "args": ["-m", "app.mcp_server"],
                 "transport": "stdio",
+                "env": _server_env(),
             }
         }
     )

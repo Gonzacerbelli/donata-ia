@@ -9,10 +9,10 @@
 | Fase | Descripción | Estado |
 |---|---|---|
 | **F0** | Bootstrap: estructura del repo, contexto para IA, PDF de casos de uso | ✅ **Completada** |
-| **F1** | Validación docente de los 10 casos de uso | ⏳ **En espera** |
-| **F2** | Scaffolding: Docker, backend base (config, seguridad, modelos) | ⬜ Pendiente |
-| **F3** | Backend de negocio: auth, proveedores, productos, clientes, órdenes, stock | ⬜ Pendiente |
-| **F4** | Backend de soporte: reports, notificaciones, exports, chat IA (LangChain + Ollama) | ⬜ Pendiente |
+| **F1** | Validación docente de los 10 casos de uso | ✅ **Completada** (feedback incorporado) |
+| **F2** | Scaffolding: Docker, backend base (config, seguridad, modelos) | ✅ **Completada** |
+| **F3** | Backend de negocio: auth, proveedores, productos, clientes, órdenes, stock | ✅ **Completada** |
+| **F4** | Backend de soporte: reports, historial de chat, RAG, servidor MCP + agente | ✅ **Completada** (notificaciones y exports pendientes) |
 | **F5** | Frontend: base, auth, layout | ⬜ Pendiente |
 | **F6** | Frontend: módulos de negocio (dashboard, productos, clientes, órdenes, proveedores) | ⬜ Pendiente |
 | **F7** | Frontend: notificaciones, exportación, chat IA | ⬜ Pendiente |
@@ -137,6 +137,12 @@ Orden dentro de la fase: primero los independentemente verificables, después el
 | 4.3 | Exportación CSV y XLSX reutilizando las queries de listado | CU10 | Test de paridad: export == lo que muestra el listado filtrado |
 | 4.4 | Chat IA: agente LangChain + Ollama + tools | CU07 | Test con Ollama mockeado + test manual con el modelo real |
 | 4.5 | Health check de Ollama + degradación elegante | CU07 | Test de Ollama caído → `503` y el resto sigue operando |
+| 4.6 | Servidor MCP propio (`donata-mcp`) + agente con tool-calling por MCP + RAG sobre el manual operativo | CU07 | Tests por stdio real + E2E con Ollama real (`scripts/e2e_check.py`) |
+
+**Estado F4 (cierre de hito).** Implementado y en `main`: guardrails, historial de chat en Mongo,
+RAG local (Chroma + embeddings HuggingFace) y el servidor MCP `donata-mcp` con 12 herramientas,
+consumido por el agente mediante `langchain-mcp-adapters`. **80 tests verdes** y chequeo E2E real
+con Ollama (`qwen2.5:7b-instruct`). Notificaciones (4.2) y exportación (4.3) quedan pendientes.
 
 **Sobre 4.4.** La parte más delicate. Secuencia:
 
