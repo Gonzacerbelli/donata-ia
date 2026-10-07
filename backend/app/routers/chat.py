@@ -3,13 +3,22 @@ from fastapi import APIRouter, Depends
 from ..dependencies import CurrentUser, Database, get_current_user
 from ..schemas.chat import (
     ChatMessageOut,
+    ChatRequest,
+    ChatResponse,
     ChatThreadCreate,
     ChatThreadOut,
     ChatThreadUpdate,
 )
 from ..services import chat_history as chat_service
+from ..services.llm import assistant
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_current_user)])
+
+
+@router.post("", response_model=ChatResponse)
+async def chat(body: ChatRequest, user: CurrentUser, db: Database) -> ChatResponse:
+    result = await assistant.handle_message(db, str(user.id), body.thread_id, body.message)
+    return ChatResponse(**result)
 
 
 @router.get("/threads", response_model=list[ChatThreadOut])
