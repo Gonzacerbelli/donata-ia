@@ -109,3 +109,9 @@ class PaymentCreate(BaseModel):
     type: Literal["adelanto", "pago"] = "pago"
     method: str | None = Field(default=None, max_length=60)
     notes: str | None = None
+
+
+class StockAdjust(BaseModel):
+    product_id: ObjIdStr
+    quantity: int
+    reason: str = Field(min_length=1, max_length=200)

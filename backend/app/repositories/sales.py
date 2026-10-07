@@ -115,3 +115,10 @@ async def delete_sale(db: AsyncIOMotorDatabase, sale_id: str) -> bool:
 
 async def count_sales(db: AsyncIOMotorDatabase, query: dict) -> int:
     return await count_docs(coll(db, "sales"), query)
+
+
+async def count_sales_by_product(db: AsyncIOMotorDatabase, product_id: str) -> int:
+    oid = _to_oid(product_id)
+    if oid is None:
+        return 0
+    return await count_docs(coll(db, "sales"), {"items.product_id": oid})
