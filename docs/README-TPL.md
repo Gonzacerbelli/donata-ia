@@ -134,7 +134,18 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
 ## 6. MCP — Model Context Protocol
 
-Detalle y configuración: [`docs/MCP.md`](docs/MCP.md)
+Detalle y configuración: [`docs/MCP.md`](docs/MCP.md). Hay **dos planos** de MCP:
+
+**Plano A — dentro del producto.** El asistente CU07 consume sus 12 herramientas de negocio a
+través de un servidor MCP **propio** (`donata-mcp`, FastMCP, stdio), levantado como subproceso y
+consumido con `langchain-mcp-adapters`. Cada tool envuelve un `service`, por lo que el agente
+respeta las mismas reglas que la API. Verificación E2E real:
+
+```bash
+docker compose run --rm --no-deps api python -m scripts.e2e_check
+```
+
+**Plano B — en el entorno de desarrollo.**
 
 | Servidor | Tipo | Rol en el desarrollo |
 |---|---|---|
@@ -142,8 +153,10 @@ Detalle y configuración: [`docs/MCP.md`](docs/MCP.md)
 | `filesystem` | externo | Acceso al sistema heredado a portar |
 | `playwright` | externo | Verificación de la UI en navegador real |
 | `sequential-thinking` | externo | Razonamiento estructurado para decisiones complejas |
+| `github` | externo remoto | Rama + PR + merge de cada hito |
 
-Ejemplo real de uso por servidor: <!-- completar -->
+Cobertura: **1 servidor MCP propio** (arquitectura) + **5 servidores MCP** en el entorno de
+desarrollo, **uno remoto**.
 
 ---
 

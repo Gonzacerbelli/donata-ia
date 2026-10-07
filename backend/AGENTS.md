@@ -7,7 +7,8 @@
 ## Stack
 
 Python 3.12 · FastAPI · Pydantic v2 · Motor (MongoDB async) · PyJWT · python-multipart ·
-LangChain + langchain-ollama · openpyxl · slowapi · pytest · httpx
+LangChain + langchain-ollama · **fastmcp + langchain-mcp-adapters** · **chromadb + embeddings
+HuggingFace** · openpyxl · slowapi · pytest · httpx
 
 ## Estructura
 
@@ -26,14 +27,38 @@ backend/
 │   ├── schemas/           request / response por dominio
 │   ├── repositories/      acceso a Mongo. Toda query vive acá
 │   ├── services/          reglas de negocio
-│   │   └── llm/           agente LangChain, tools, prompts
+│   │   └── llm/           guardrails, vector_store, rag, agent, assistant
 │   ├── routers/           HTTP
+│   ├── mcp_server.py      servidor MCP donata-mcp (tools de negocio)
 │   └── middleware/        rate limit, request id, context
+├── knowledge/             manual operativo (fuente del RAG)
+├── scripts/               ingest_kb.py, e2e_check.py
 ├── tests/
 ├── requirements.txt
 ├── requirements-dev.txt
 └── pytest.ini
 ```
+
+## Capa IA y MCP
+
+El asistente (CU07) vive en `services/llm/` y `mcp_server.py`. Reglas:
+
+| Pieza | Archivo | Regla |
+|---|---|---|
+| Guardrails | `services/llm/guardrails.py` | Filtra tema/injección **antes** de llamar al modelo y valida la salida |
+| Vector store | `services/llm/vector_store.py` | Colecciones Chroma `donata_kb` y `donata_products`; nombres ≥ 3 chars |
+| RAG | `services/llm/rag.py` | Cadena LCEL; `get_llm()` es la única fábrica de `ChatOllama` |
+| Agente | `services/llm/agent.py` | Tool-calling sobre MCP con `MultiServerMCPClient` |
+| Orquestador | `services/llm/assistant.py` | Guardrails + historial + agente + persistencia de `tool_calls` |
+| Servidor MCP | `mcp_server.py` | FastMCP stdio; **cada tool envuelve un service**, nunca un repo directo |
+
+- El servidor MCP corre como **subproceso** del backend (stdio), no como servicio de red.
+- Al lanzarlo hay que pasarle el entorno explícito (`MONGO_URI`, `CHROMA_DIR`, `OLLAMA_BASE_URL`):
+  el subproceso no hereda el `.env` del compose. Ver `agent._server_env()`.
+- Todo acceso bloqueante a Chroma/embeddings va por `to_thread` para no bloquear el event loop.
+- Endpoint del chat: `POST /chat` (autenticado). **Ollama caído → `503`**, el resto del sistema
+  sigue operando.
+- E2E real: `docker compose run --rm --no-deps api python -m scripts.e2e_check`.
 
 ## Capas
 
@@ -116,6 +141,8 @@ docker compose run --rm api pytest -k stock     # por palabra clave
 docker compose up --build                  # API en 8000
 docker compose logs -f api
 docker compose run --rm api pytest
+docker compose run --rm --no-deps api sh -c "ruff format app scripts tests; ruff check app scripts tests"
+docker compose run --rm --no-deps api python -m scripts.e2e_check   # E2E real con Ollama
 uvicorn app.main:app --reload              # sin docker
 ruff check app && ruff format app
 ```

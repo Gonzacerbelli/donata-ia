@@ -229,6 +229,35 @@ Ollama caído  →  GET /health reporta degraded
 La IA es un accesorio del sistema de gestión, nunca un punto único de falla. Esto es
 deliberado y está en los criterios de aceptación de CU07.
 
+### 6.6 Capa MCP — cómo el agente obtiene sus tools
+
+Las herramientas del asistente **no** son funciones sueltas dentro del agente: se exponen en un
+**servidor MCP propio** (`backend/app/mcp_server.py`, FastMCP, transporte **stdio**) y el agente
+las descubre y ejecuta con `MultiServerMCPClient` (`langchain-mcp-adapters`).
+
+```
+POST /chat (router)
+   └─ services/llm/assistant.py      guardrails + historial + validación de salida
+        └─ services/llm/agent.py     bucle de tool-calling (ChatOllama)
+             └─ MultiServerMCPClient (stdio)
+                  └─ mcp_server.py   donata-mcp — 12 tools en español
+                       └─ services/*  reglas de negocio (stock, ventas, clientes, reportes)
+                              └─ repositories/*  →  MongoDB
+   └─ services/llm/rag.py           consultar_documentacion → Chroma (embeddings locales)
+```
+
+Decisiones y porqués:
+
+| Decisión | Motivo |
+|---|---|
+| Servidor MCP **propio** en vez de tools inline | Desacopla el negocio del agente y hace que las tools sean testeables por stdio, de forma aislada |
+| Transporte **stdio** (subproceso), no HTTP | No expone el negocio a la red; el único cliente es el backend |
+| Cada tool envuelve un **service**, no un repo | Hereda las mismas invariantes que la API (stock atómico, montos enteros, saldo derivado) |
+| Entorno explícito al subproceso (`_server_env`) | El subproceso no hereda el `.env` del compose; sin esto, las tools fallan por conexión |
+| RAG en **colección separada** del catálogo | El manual es estable; el catálogo cambia y se reindexa aparte |
+
+Detalle de las herramientas y su mapeo a los servicios: `docs/MCP.md` §2.0.
+
 ---
 
 ## 7. Seguridad

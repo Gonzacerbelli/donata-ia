@@ -150,6 +150,143 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20261006] Servidor MCP propio + agente con tool-calling — completado
+
+**Objetivo.** Que el asistente (CU07) actúe sobre el negocio exclusivamente a través de un
+servidor MCP, y que ese servidor sea **código propio** (plano de producto, no sólo tooling).
+
+**Contexto dado a la IA.** `AGENTS.md` §3.4 ("el asistente no toca la BD"), `docs/MCP.md`,
+`backend/AGENTS.md` (capas), el patrón de tests de `donata-deco`, y la recomendación de
+`langchain-mcp-adapters`.
+
+**Prompt (esencial).** *"Implementá `donata-mcp` con FastMCP (stdio) exponiendo las operaciones
+de negocio en español que envuelvan los `services`; y un agente que las consuma con
+`MultiServerMCPClient`, con un bucle de tool-calling acotado y log de las herramientas usadas."*
+
+**Iteración.** 1) Se expusieron las 12 tools envolviendo `services`, no repositorios.
+2) Primer E2E real: el agente eligió bien la tool pero el `buscar_productos` falló con
+`localhost:27017` — el subproceso MCP **no heredaba** `MONGO_URI` del `env_file` de compose.
+→ Se agregó `_server_env()` que inyecta explícitamente `MONGO_URI`, `CHROMA_DIR`,
+`OLLAMA_BASE_URL`, etc. al subproceso. 3) Se partió una línea larga del `SYSTEM_PROMPT` que
+rompía ruff (line-length 100).
+
+**Resultado.** `backend/app/mcp_server.py` (12 tools), `agent.py` (bucle de tool-calling,
+`MAX_STEPS=6`), `assistant.py` (guardrails + historial + persistencia de `tool_calls`),
+`POST /chat`. **80 tests verdes** y E2E real:
+
+```
+Respuesta: En tu catálogo actualmente hay ... con stock ...
+Herramientas usadas: ['buscar_productos']
+```
+
+**Lección.** Un servidor MCP por **stdio** hereda el entorno del proceso padre de forma
+implícita solo hasta cierto punto: si el agente lo lanza como subproceso, conviene pasar el
+entorno **explícito** en lugar de confiar en el `.env`. Es un error silencioso: el agente
+"funciona" pero las tools fallan por conexión.
+
+---
+
+### [20261005] RAG local sobre el manual operativo — completado
+
+**Objetivo.** Responder preguntas sobre las reglas del negocio a partir de documentación,
+sin inventar, y sin salir de la máquina.
+
+**Contexto dado a la IA.** El ejemplo docente `rag-chat-static` (loader → splitter → embeddings
+→ Chroma → chain LCEL) y la restricción de IA 100 % local.
+
+**Prompt (esencial).** *"Espejá el pipeline del ejemplo pero con la arquitectura del proyecto:
+`services/llm/vector_store.py` y `rag.py`, ingesta idempotente, embeddings HuggingFace
+`all-MiniLM-L6-v2`."*
+
+**Iteración.** La ingesta automática en el `lifespan` obligó a correr los embeddings en
+`to_thread` para no bloquear el arranque. Se agregó una segunda colección (`donata_products`)
+para la búsqueda semántica de productos, separada de la del manual.
+
+**Resultado.** `backend/knowledge/manual-operativo.md` (12 fragmentos), `scripts/ingest_kb.py`
+(`--force`, `--products`), chain LCEL con `temperature=0.1`. Verificado: preguntar *"¿Cómo se
+calculan los precios mayoristas?"* devuelve la respuesta del manual, no del modelo.
+
+**Lección.** Nunca mezclar en una misma colección el conocimiento estable (manual) con datos que
+cambian (catálogo): se resetean e indexan por separado.
+
+---
+
+### [20261004] Historial de conversaciones — completado
+
+**Objetivo.** Persistir los hilos y mensajes del chat para dar continuidad y dejar auditoría.
+
+**Prompt (esencial).** *"Threads scoped por usuario, creación idempotente, borrado del hilo en
+cascada sobre sus mensajes (es un chat: no aplica el `409` de integridad)."*
+
+**Iteración.** Se decidió que el historial que se le entrega al modelo es acotado
+(`CHAT_HISTORY_LIMIT`), no todo el hilo, para no inflar el prompt de un 7B.
+
+**Resultado.** `services/chat_history.py`, `routers/chat.py`, `tests/test_chat_history.py`.
+
+**Lección.** El chat es el único dominio del sistema donde el borrado en cascada es lo correcto;
+la regla general del proyecto (borrar con referencias → `409`) tiene su excepción documentada.
+
+---
+
+### [20261003] Backend de negocio: servicios + routers — completado
+
+**Objetivo.** Portar la lógica de negocio probada del sistema heredado, con los cambios de
+alcance (sin roles, producto↔proveedor obligatorio, precio dual).
+
+**Contexto dado a la IA.** `donata-deco/backend/app/routers/sales.py` y `models.py` como fuente
+de reglas; `AGENTS.md` §3 como contrato.
+
+**Prompt (esencial).** *"Portá la lógica, no el framework. Stock atómico con
+`find_one_and_update` condicional, rollback total, movimientos inmutables."*
+
+**Iteración.** La revisión adversarial encontró que el alta de producto no persistía bien
+`provider_id` como ObjectId ni el `active=True` por defecto: se corrigió. El `422` de proveedor
+inexistente y el `409` de borrado con referencias quedaron cubiertos por tests.
+
+**Resultado.** `services/{providers,products,clients,sales,stock,reports}.py`, sus routers, y
+tests de atomicidad, rollback, invariantes de saldo y reportes. **65 tests** al cerrar el hito.
+
+**Lección.** El test de atomicidad de stock hay que escribirlo **antes**: es el invariante que
+más fácil se rompe al "optimizar" una lectura.
+
+---
+
+### [20261002] Autenticación OAuth Google + JWT — completado
+
+**Objetivo.** CU01: login con Google y sesión por JWT, sin roles.
+
+**Prompt (esencial).** *"Flujo authorization-code con validación de `state`, upsert del usuario
+por `google_sub`, rechazo de cuentas inactivas, y login local de emergencia."*
+
+**Iteración.** Se verificó que el `state` inválido y el token expirado devuelvan `401`. El
+`access_token` se valida con la librería de Google (`tokeninfo`) y se hace upsert por `sub`.
+
+**Resultado.** `core/{errors,security}.py`, `services/auth.py`, `dependencies.py`,
+`routers/auth.py`, `tests/test_auth.py`.
+
+**Lección.** El `state` de OAuth no es opcional: sin validarlo, el callback es un CSRF.
+
+---
+
+### [20261001] Scaffolding: Docker + backend base — completado
+
+**Objetivo.** Dejar `docker compose up` levantando API + Mongo, con health check y configuración
+por entorno.
+
+**Prompt (esencial).** *"Dockerfile python:3.12-slim, config con pydantic-settings que falla
+rápido, `/health`, y montar `data/` para caches de modelos."*
+
+**Iteración.** Se agregó `python-multipart`, `--no-deps` para correr tests sin re-levantar Mongo,
+y el montaje de `data/hf_cache` para no re-descargar el modelo de embeddings en cada arranque.
+
+**Resultado.** `docker-compose.yml`, `backend/Dockerfile`, `config.py`, `db.py`, `main.py`,
+`/health` → ok.
+
+**Lección.** Montar la caché de HuggingFace como volumen ahorra minutos de descarga por corrida
+y evita fallos por red en la demo.
+
+---
+
 ### [20260926] Especificación de los 10 casos de uso — completado
 
 **Objetivo.** Definir los 10 casos de uso funcionales del sistema para presentarlos a
