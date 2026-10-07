@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,12 +15,19 @@ from .routers import providers as providers_router
 from .routers import reports as reports_router
 from .routers import sales as sales_router
 from .routers import stock as stock_router
+from .services.llm import vector_store
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
     await init_indexes()
+    try:
+        await asyncio.to_thread(vector_store.ingest_knowledge_base)
+    except Exception as exc:  # pragma: no cover - arranque tolerante a fallos de IA
+        import logging
+
+        logging.getLogger(__name__).warning("no se pudo preparar la base vectorial: %s", exc)
     yield
     await close_db()
 
