@@ -1,12 +1,10 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..models import ChatMessage, ChatThread, doc_to_model, utcnow
-from .base import coll, delete_doc, insert_doc, list_docs, update_doc
+from .base import coll, insert_doc, list_docs
 
 
-async def get_thread_by_thread_id(
-    db: AsyncIOMotorDatabase, thread_id: str
-) -> ChatThread | None:
+async def get_thread_by_thread_id(db: AsyncIOMotorDatabase, thread_id: str) -> ChatThread | None:
     doc = await coll(db, "chat_threads").find_one({"thread_id": thread_id})
     return doc_to_model(ChatThread, doc)
 
@@ -41,9 +39,7 @@ async def touch_thread(db: AsyncIOMotorDatabase, thread_id: str) -> None:
     )
 
 
-async def update_thread_title(
-    db: AsyncIOMotorDatabase, thread_id: str, title: str
-) -> bool:
+async def update_thread_title(db: AsyncIOMotorDatabase, thread_id: str, title: str) -> bool:
     result = await coll(db, "chat_threads").update_one(
         {"thread_id": thread_id}, {"$set": {"title": title, "updated_at": utcnow()}}
     )

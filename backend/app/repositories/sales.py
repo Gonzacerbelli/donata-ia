@@ -1,12 +1,12 @@
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..models import Sale, doc_to_model, to_mongo
-from .base import coll, find_by_id, insert_doc, list_docs, count_docs, valid_oid
+from ..models import Sale, doc_to_model
+from .base import coll, count_docs, find_by_id, insert_doc, list_docs
 
 
 def _to_oid(value: str) -> ObjectId | None:
@@ -21,7 +21,7 @@ def _parse_date(value: str | None) -> datetime | None:
         return None
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -100,7 +100,7 @@ async def add_payment(db: AsyncIOMotorDatabase, sale_id: str, payment: dict) -> 
         return None
     await coll(db, "sales").update_one(
         {"_id": oid},
-        {"$push": {"payments": payment}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+        {"$push": {"payments": payment}, "$set": {"updated_at": datetime.now(UTC)}},
     )
     return await get_sale(db, sale_id)
 

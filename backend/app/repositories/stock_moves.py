@@ -20,7 +20,5 @@ async def list_moves(
         if oid is None:
             return []
         query["product_id"] = oid
-    docs = await list_docs(
-        coll(db, "stock_moves"), query, sort=[("created_at", -1)], limit=limit
-    )
+    docs = await list_docs(coll(db, "stock_moves"), query, sort=[("created_at", -1)], limit=limit)
     return [m for m in (doc_to_model(StockMove, d) for d in docs) if m is not None]

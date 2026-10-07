@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TypeVar
 
 from bson import ObjectId
@@ -23,7 +23,7 @@ class ObjIdStr(str):
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def as_oid(value: str | ObjectId | None) -> ObjectId | None:
