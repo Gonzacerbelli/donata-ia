@@ -80,7 +80,7 @@ async def test_google_start_returns_authorize_url(client):
     assert "client_id=" in url
 
 
-async def test_google_callback_creates_user(client, db, monkeypatch):
+async def test_google_callback_redirects_with_one_time_code(client, db, monkeypatch):
     async def fake_exchange(code: str) -> dict:
         return {
             "sub": "google-123",
@@ -92,23 +92,62 @@ async def test_google_callback_creates_user(client, db, monkeypatch):
     monkeypatch.setattr("app.services.auth.exchange_code_for_userinfo", fake_exchange)
     state = create_oauth_state()
     response = await client.get("/auth/google/callback", params={"code": "abc", "state": state})
-    assert response.status_code == 200
-    data = response.json()
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert "/auth/callback?code=" in location
+    auth_code = location.split("code=")[1]
+
+    exchange = await client.post("/auth/exchange", json={"code": auth_code})
+    assert exchange.status_code == 200
+    data = exchange.json()
     assert data["access_token"]
     assert data["user"]["email"] == "g@x.com"
 
     again = await client.get(
         "/auth/google/callback", params={"code": "abc", "state": create_oauth_state()}
     )
-    assert again.status_code == 200
-    assert again.json()["user"]["id"] == data["user"]["id"]
+    assert again.status_code == 302
+    second = await client.post(
+        "/auth/exchange", json={"code": again.headers["location"].split("code=")[1]}
+    )
+    assert second.status_code == 200
+    assert second.json()["user"]["id"] == data["user"]["id"]
 
 
 async def test_google_callback_rejects_bad_state(client):
     response = await client.get(
         "/auth/google/callback", params={"code": "abc", "state": "invalido"}
     )
-    assert response.status_code == 400
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert "/login?error=" in location
+
+
+async def test_google_callback_with_provider_error_redirects_to_login(client):
+    response = await client.get("/auth/google/callback", params={"error": "access_denied"})
+    assert response.status_code == 302
+    assert "/login?error=" in response.headers["location"]
+
+
+async def test_auth_code_is_single_use(client, db, monkeypatch):
+    async def fake_exchange(code: str) -> dict:
+        return {"sub": "google-456", "email": "otro@x.com", "name": "Otro"}
+
+    monkeypatch.setattr("app.services.auth.exchange_code_for_userinfo", fake_exchange)
+    response = await client.get(
+        "/auth/google/callback", params={"code": "abc", "state": create_oauth_state()}
+    )
+    auth_code = response.headers["location"].split("code=")[1]
+
+    first = await client.post("/auth/exchange", json={"code": auth_code})
+    assert first.status_code == 200
+    second = await client.post("/auth/exchange", json={"code": auth_code})
+    assert second.status_code == 401
+
+
+async def test_exchange_rejects_unknown_code(client):
+    response = await client.post("/auth/exchange", json={"code": "no-existe"})
+    assert response.status_code == 401
 
 
 async def test_local_login_ok(client):

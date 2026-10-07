@@ -16,3 +16,8 @@ export async function fetchGoogleLoginUrl(): Promise<string> {
   const { data } = await api.get<{ url: string }>("/auth/google");
   return data.url;
 }
+
+export async function exchangeAuthCode(code: string): Promise<TokenResponse> {
+  const { data } = await api.post<TokenResponse>("/auth/exchange", { code });
+  return data;
+}
