@@ -94,6 +94,8 @@ class SaleCreate(BaseModel):
     discount: int = Field(default=0, ge=0)
     discount_pct: float | None = Field(default=None, ge=0, le=100)
     notes: str | None = None
+    ship_by: datetime | None = None
+    payment_due: datetime | None = None
 
 
 class SaleUpdate(BaseModel):
@@ -101,6 +103,9 @@ class SaleUpdate(BaseModel):
     shipping_cost: int | None = Field(default=None, ge=0)
     discount: int | None = Field(default=None, ge=0)
     discount_pct: float | None = Field(default=None, ge=0, le=100)
+    notes: str | None = None
+    ship_by: datetime | None = None
+    payment_due: datetime | None = None
 
 
 class PaymentCreate(BaseModel):

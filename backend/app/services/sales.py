@@ -105,6 +105,8 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
         "status": "pendiente",
         "payments": [],
         "notes": body.notes,
+        "ship_by": body.ship_by,
+        "payment_due": body.payment_due,
         "created_at": now,
         "updated_at": now,
     }
@@ -178,6 +180,12 @@ async def update_sale(db: AsyncIOMotorDatabase, sale_id: str, body: SaleUpdate) 
         updates["status"] = body.status
 
     financial = False
+    if body.notes is not None:
+        updates["notes"] = body.notes
+    if body.ship_by is not None:
+        updates["ship_by"] = body.ship_by
+    if body.payment_due is not None:
+        updates["payment_due"] = body.payment_due
     if body.shipping_cost is not None:
         updates["shipping_cost"] = body.shipping_cost
         financial = True

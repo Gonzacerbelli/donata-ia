@@ -745,13 +745,13 @@ formato, ejemplos) para que el modelo de 7B se comporte de forma predecible:
 
 - [ ] La campana muestra el total de notificaciones no leídas, actualizado en tiempo real.
 - [ ] El panel lista las alertas agrupadas por severidad, y dentro de cada grupo por tipo.
-- [ ] Se generan notificaciones por **fecha límite de envío** (pendiente y vencida).
-- [ ] Se generan notificaciones por **pagos pendientes y vencidos**.
-- [ ] Se generan notificaciones por **stock mínimo alcanzado y stock agotado**.
+- [x] Se generan notificaciones por **fecha límite de envío** (pendiente y vencida).
+- [x] Se generan notificaciones por **pagos pendientes y vencidos**.
+- [x] Se generan notificaciones por **stock mínimo alcanzado y stock agotado**.
 - [ ] Al hacer clic se navega a la entidad correspondiente con contexto expandido.
-- [ ] "Marcar como leída" y "Marcar todas como leídas" funcionan y actualizan el badge.
-- [ ] "Descartar" oculta la notificación sin resolver el problema de negocio.
-- [ ] Las notificaciones se recalculan: si la alerta deja de ser válida, desaparece.
+- [x] "Marcar como leída" y "Marcar todas como leídas" funcionan y actualizan el badge.
+- [x] "Descartar" oculta la notificación sin resolver el problema de negocio.
+- [x] Las notificaciones se recalculan: si la alerta deja de ser válida, desaparece.
 - [ ] Con alertas resueltas, el panel muestra un estado vacío claro.
 
 ### Alcance técnico
@@ -846,16 +846,16 @@ formato, ejemplos) para que el modelo de 7B se comporte de forma predecible:
 
 ### Criterios de aceptación
 
-- [ ] La exportación respeta **exactamente** los filtros activos en el momento de la descarga.
-- [ ] Se exporta **CSV y Excel (.xlsx)** desde Órdenes, Clientes y Productos.
+- [x] La exportación respeta **exactamente** los filtros activos en el momento de la descarga.
+- [x] Se exporta **CSV y Excel (.xlsx)** desde Órdenes, Clientes y Productos.
 - [ ] El archivo se descarga desde el navegador sin navegar a otra página ni romper la sesión.
-- [ ] El nombre del archivo descripta entidad, rango de fechas y filtro aplicado.
-- [ ] Las columnas monetarias son numéricas y utilizables para cálculo en una planilla.
-- [ ] Las fechas se muestran como DD/MM/AAAA.
-- [ ] Los acentos y la ñ se visualizan correctamente al abrir con Excel en Windows.
-- [ ] Los ítems de una orden aparecen en texto legible (cantidad × descripción).
+- [x] El nombre del archivo descripta entidad, rango de fechas y filtro aplicado.
+- [x] Las columnas monetarias son numéricas y utilizables para cálculo en una planilla.
+- [x] Las fechas se muestran como DD/MM/AAAA.
+- [x] Los acentos y la ñ se visualizan correctamente al abrir con Excel en Windows.
+- [x] Los ítems de una orden aparecen en texto legible (cantidad × descripción).
 - [ ] Los botones de exportación están deshabilitados cuando no hay datos.
-- [ ] El proceso respeta el rate limit del backend.
+- [x] El proceso respeta el rate limit del backend.
 
 ### Alcance técnico
 

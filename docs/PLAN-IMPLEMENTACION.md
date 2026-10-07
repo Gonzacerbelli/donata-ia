@@ -139,10 +139,19 @@ Orden dentro de la fase: primero los independentemente verificables, después el
 | 4.5 | Health check de Ollama + degradación elegante | CU07 | Test de Ollama caído → `503` y el resto sigue operando |
 | 4.6 | Servidor MCP propio (`donata-mcp`) + agente con tool-calling por MCP + RAG sobre el manual operativo | CU07 | Tests por stdio real + E2E con Ollama real (`scripts/e2e_check.py`) |
 
-**Estado F4 (cierre de hito).** Implementado y en `main`: guardrails, historial de chat en Mongo,
-RAG local (Chroma + embeddings HuggingFace) y el servidor MCP `donata-mcp` con 12 herramientas,
-consumido por el agente mediante `langchain-mcp-adapters`. **80 tests verdes** y chequeo E2E real
-con Ollama (`qwen2.5:7b-instruct`). Notificaciones (4.2) y exportación (4.3) quedan pendientes.
+**Estado F4 (hito cerrado).** Implementado y en `main`: guardrails, historial de chat en Mongo,
+RAG local (Chroma + embeddings HuggingFace), el servidor MCP `donata-mcp` con 12 herramientas
+(consumido por el agente vía `langchain-mcp-adapters`), **notificaciones** (CU09) y **exportación
+CSV/XLSX** (CU10). **101 tests verdes** y chequeo E2E real con Ollama (`qwen2.5:7b-instruct`).
+
+- **4.2 Notificaciones.** `GET /notifications` recalcula las alertas del negocio en cada consulta
+  (stock, envíos, cobros, orden incompleta) y las combina con el estado por usuario
+  (`notification_states`): `PATCH /notifications/{id}`, `POST /notifications/read-all` y
+  `POST /notifications/dismiss-all`. Reglas del catálogo CU09 con severidad alta/media/baja.
+- **4.3 Exportación.** `GET /exports/{entidad}.{csv|xlsx}` reutiliza **exactamente** las mismas
+  queries de listado (mismos filtros y orden, sin paginación), con paridad verificada por test.
+  CSV en UTF-8 con BOM y montos planos; XLSX con openpyxl y formato de moneda. Límite de 10 000
+  filas → `422`.
 
 **Sobre 4.4.** La parte más delicate. Secuencia:
 

@@ -34,6 +34,10 @@ INDEXES: dict[str, list[dict]] = {
         {"keys": [("thread_id", 1)]},
         {"keys": [("created_at", 1)]},
     ],
+    "notification_states": [
+        {"keys": [("user_id", 1), ("key", 1)], "unique": True},
+        {"keys": [("user_id", 1)]},
+    ],
 }
 
 

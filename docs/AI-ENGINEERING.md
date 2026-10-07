@@ -150,6 +150,37 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20260710] Cierre de F4: exportación CSV/XLSX y notificaciones — completado
+
+**Objetivo.** Completar el backend de soporte (F4.2 y F4.3): exportación que respete los filtros
+de pantalla (CU10) y el motor de notificaciones en plataforma (CU09).
+
+**Contexto para el agente.** `docs/CASOS_DE_USO.md` §CU09 y §CU10 (catálogo de reglas y columnas),
+el patrón de `repositories/` ya existente, y la regla "el export reutiliza la misma query del
+listado" del `backend/AGENTS.md`.
+
+**Prompts clave.**
+1. *"Implementá `GET /exports/{entidad}.{csv|xlsx}` reutilizando las funciones de listado, sin
+   paginación; CSV con BOM y montos planos, XLSX con openpyxl y formato de moneda."*
+2. *"Implementá `GET /notifications`: recalculá las alertas de stock, envíos, cobros y órdenes
+   incompletas, combinándolas con el estado de lectura/descarte por usuario."*
+
+**Iteraciones y hallazgos.**
+- Para CU09 faltaban en el modelo `Sale` los campos `ship_by` y `payment_due` que las reglas de
+  envío y cobro dan por sentados. Se agregaron al modelo y a los schemas de creación/edición.
+- El primer borrador del servicio de notificaciones usaba un alias de import inconsistente
+  (`notif_repo` vs `notifications_repo`); el test lo cazó de inmediato (NameError).
+- Regla de exclusión mutua para evitar duplicados: un producto en 0 genera `STOCK_AGOTADO` y
+  **no** también `STOCK_MINIMO`; un cobro vencido genera `PAGO_VENCIDO` y no `PAGO_PENDIENTE`.
+- Seguridad de export: además del rate limit, se neutraliza la **inyección de fórmulas** en CSV
+  (celdas que empiezan con `=`, `+`, `-`, `@` se prefijan con `'`), con test propio.
+
+**Verificación.** Paridad export↔listado por test (mismo filtro, mismo conjunto), BOM en CSV,
+montos numéricos y `number_format` en XLSX, y **una prueba por cada regla de generación** de
+alerta más las de estado leído/descartado. **101 tests verdes** y ruff limpio.
+
+---
+
 ### [20261007] Endurecimiento: rate limit, headers, health y timestamps — completado
 
 **Objetivo.** Cerrar los pendientes de seguridad de la rúbrica (rate limiting por endpoint,
