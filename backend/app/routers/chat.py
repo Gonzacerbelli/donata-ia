@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from ..dependencies import CurrentUser, Database, get_current_user
 from ..schemas.chat import (
+    ChatConfirmRequest,
     ChatMessageOut,
     ChatRequest,
     ChatResponse,
@@ -18,6 +19,14 @@ router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_curr
 @router.post("", response_model=ChatResponse)
 async def chat(body: ChatRequest, user: CurrentUser, db: Database) -> ChatResponse:
     result = await assistant.handle_message(db, str(user.id), body.thread_id, body.message)
+    return ChatResponse(**result)
+
+
+@router.post("/confirm", response_model=ChatResponse)
+async def confirm_chat_action(
+    body: ChatConfirmRequest, user: CurrentUser, db: Database
+) -> ChatResponse:
+    result = await assistant.confirm_pending(db, str(user.id), body.thread_id, body.token)
     return ChatResponse(**result)
 
 

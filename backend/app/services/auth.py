@@ -104,7 +104,7 @@ async def authenticate_google_callback(db: AsyncIOMotorDatabase, code: str, stat
 
 
 async def authenticate_local(db: AsyncIOMotorDatabase, username: str, password: str) -> User:
-    if not settings.enable_local_login:
+    if not settings.enable_local_login or settings.env == "production":
         raise UnauthorizedError("El login local está deshabilitado")
     if username != settings.local_admin_username or password != settings.local_admin_password:
         raise UnauthorizedError("Usuario o contraseña incorrectos")

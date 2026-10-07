@@ -22,6 +22,7 @@ _EXEMPT_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
 
 _WINDOW_SECONDS = 60
 _WINDOWS: dict[str, list] = {}
+_MAX_BODY_BYTES = 2_000_000
 
 
 def reset_rate_limits() -> None:
@@ -30,12 +31,22 @@ def reset_rate_limits() -> None:
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        if request.method in _WRITE_METHODS and _body_too_large(request):
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "El cuerpo de la petición es demasiado grande."},
+            )
         response = await call_next(request)
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
         if settings.env != "dev":
             response.headers.update(HSTS_HEADER)
         return response
+
+
+def _body_too_large(request) -> bool:
+    raw = request.headers.get("content-length", "")
+    return raw.isdigit() and int(raw) > _MAX_BODY_BYTES
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

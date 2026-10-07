@@ -150,6 +150,44 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20261009] F8: seed, E2E, hardening y auditoría final — completado
+
+**Objetivo.** Cerrar el ciclo: datos de demostración, pruebas end-to-end de la UI, checklist de
+`docs/SEGURIDAD.md` verificado contra el sistema corriendo y `README.md` final.
+
+**Contexto para el agente.** `docs/PLAN-IMPLEMENTACION.md` §10 (entregables de F8) y
+`docs/SEGURIDAD.md` §7 (checklist verificable). Cada ítem se marcó sólo después de comprobarlo
+con `curl`, con un test o leyendo el código, no por intención.
+
+**Prompts clave.**
+1. *"Levantá el checklist de SEGURIDAD punto por punto contra el entorno real y aplicá los fixes
+   de lo que no cierre; dejá explicitadas las deudas."*
+2. *"El modelo no debe poder ejecutar escrituras: filtrá `WRITE_TOOLS` del catálogo, dejalo sólo
+   en `proponer_accion` y hacé que el backend ejecute recién con confirmación explícita."*
+3. *"Auditoría final: cruzá todo el código contra el plan, arreglá lo que esté desviado y cerrá
+   con la verificación completa (pytest, ruff, tsc, eslint, Vitest, Playwright)."*
+
+**Iteraciones y hallazgos.**
+- **Fallo real del asistente:** el resultado de FastMCP llega como bloques de contenido
+  (`[{"type":"text","text":"{...}"}]`), no como objeto; la confirmación devolvía JSON crudo
+  embebido en el mensaje. Se agregó `_unwrap_result` que decodifica esos bloques (con test).
+- **Seguridad sin implementar del todo:** el token en cliente se guardaba y se usaba sin mirar
+  `exp` → ahora `tokenStore` descarta tokens vencidos y hay ADR `0004` que documenta por qué se
+  eligió `localStorage` en vez de cookie `httpOnly`.
+- **Agregados durante la auditoría:** límite de body (`413`), login local bloqueado en
+  `ENV=production` con default `false`, `pattern` de email, `limit` acotado en reportes/stock,
+  `exclude_unset` en proveedores y **celdas XLSX forzadas a texto** (openpyxl guarda `=1+1`
+  como fórmula: hay que setear `data_type="s"`, el formato `@` solo no alcanza).
+- **E2E de Playwright (4/4):** guard de rutas, login → dashboard, listado → detalle y descarga
+  de CSV. Para el login E2E se usa el usuario local de emergencia del `.env`.
+- **Verificación final:** backend 111 tests + `ruff` limpio; frontend `tsc` + `eslint` + 15 unit
+  + 4 E2E; prueba manual del flujo completo de propuesta → confirmación → cliente creado en
+  MongoDB con Ollama real.
+
+**Lección.** El checklist de seguridad vale sólo si se ejecuta contra el sistema levantado:
+tres de los ítems que daba por hechos (expiración del token en cliente, límite de body y
+forzado de texto en XLSX) no estaban implementados hasta que se verificaron uno por uno.
+
 ### [20261008] F6 + F7: módulos de negocio, notificaciones, exportación y chat — completado
 
 **Objetivo.** Implementar las pantallas de negocio del frontend (CU02–CU06, CU08), la exportación

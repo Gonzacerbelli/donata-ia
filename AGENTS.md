@@ -40,10 +40,11 @@ orquestación de agentes, prompts deliberados, iteraciones y verificación autom
 | Docker / compose | ✅ `docker-compose.yml` (api + mongo) + `backend/Dockerfile` |
 | Backend FastAPI | ✅ Núcleo + negocio + soporte: auth, proveedores, productos, clientes, ventas, stock, reportes, historial de chat |
 | IA: RAG + agente MCP | ✅ `donata-mcp` (12 tools) + agente LangChain con tool-calling + RAG (Chroma) — E2E real con Ollama |
-| Frontend React | ❌ No implementado |
-| Seed / datos de prueba | ❌ No implementado (hay `scripts/e2e_check.py` para demo) |
-| Tests | ✅ 80 tests verdes (backend); frontend pendiente |
-| README final del TP | ⬜ Plantilla en `docs/README-TPL.md` |
+| Frontend React | ✅ F5–F7: auth, dashboard, proveedores, productos, clientes, órdenes, notificaciones, chat |
+| Seed / datos de prueba | ✅ `backend/scripts/seed_demo.py` (productos, clientes y órdenes del último año) |
+| Tests | ✅ 111 tests verdes (backend) · 15 unit + 4 E2E (frontend) |
+| README final del TP | ✅ `README.md` (estructura de `docs/README-TPL.md`) |
+| Hardening / checklist de seguridad | ✅ `docs/SEGURIDAD.md` §7 verificado; deudas conocidas listadas ahí |
 
 ### 2.1 Código heredado reutilizable
 

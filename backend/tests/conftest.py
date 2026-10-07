@@ -14,6 +14,7 @@ from app.repositories import users as users_repo
 async def db():
     settings.mongo_db = settings.mongo_db_test
     settings.rate_limit_enabled = False
+    settings.enable_local_login = True
     reset_rate_limits()
     await connect_db()
     await init_indexes()

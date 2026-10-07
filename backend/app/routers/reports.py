@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..dependencies import Database, get_current_user
 from ..models import Product
@@ -19,7 +19,7 @@ async def sales_summary(
 @router.get("/top-products")
 async def top_products(
     db: Database,
-    limit: int = 5,
+    limit: int = Query(default=5, ge=1, le=50),
     date_from: str | None = None,
     date_to: str | None = None,
 ) -> list[dict]:

@@ -233,6 +233,11 @@ def _to_xlsx(headers: list[str], rows: list[list[Any]], money_cols: set[int]) ->
     for row in rows:
         sheet.append(row)
     for row_idx in range(2, len(rows) + 2):
+        for col_idx in range(len(headers)):
+            cell = sheet.cell(row=row_idx, column=col_idx + 1)
+            if isinstance(cell.value, str):
+                cell.number_format = "@"
+                cell.data_type = "s"
         for col_idx in money_cols:
             sheet.cell(row=row_idx, column=col_idx + 1).number_format = MONEY_FORMAT
     output = io.BytesIO()

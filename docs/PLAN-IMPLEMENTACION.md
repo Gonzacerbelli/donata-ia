@@ -16,7 +16,7 @@
 | **F5** | Frontend: base, auth, layout | ✅ **Completada** |
 | **F6** | Frontend: módulos de negocio (dashboard, productos, clientes, órdenes, proveedores) | ✅ **Completada** |
 | **F7** | Frontend: notificaciones, exportación, chat IA | ✅ **Completada** (sin streaming SSE; ver nota en 7.3) |
-| **F8** | Seed de datos, tests E2E, hardening, README final | ⬜ Pendiente |
+| **F8** | Seed de datos, tests E2E, hardening, README final | ✅ **Completada** |
 
 **Leyenda:** ⬜ pendiente · ⏳ en curso · ✅ completada
 
@@ -233,15 +233,30 @@ El streaming queda como mejora posterior sin impacto en la funcionalidad.
 
 ---
 
-## 10. F8 — Cierre
+## 10. F8 — Cierre (✅ completada)
 
-| Tarea | Detalle |
-|---|---|
-| Seed de datos | Script de datos de demostración realistas (productos de macramé, clientes, órdenes con fechas repartidas en el último año) para que el dashboard muestre algo significativo |
-| Tests E2E | Playwright sobre los flujos críticos: login, crear orden, registrar pago, exportar, chat |
-| Hardening | Revisión de seguridad de `docs/SEGURIDAD.md` punto por punto |
-| Documentación | `README.md` final: arquitectura, 10 CU, bitácora de AI Engineering, MCP |
-| Verificación final | Los 10 CU con sus criterios de aceptación marcados |
+| Tarea | Detalle | Estado |
+|---|---|---|
+| Seed de datos | `backend/scripts/seed_demo.py`: 4 proveedores, 15 productos de macramé, 10 clientes y ~48 órdenes repartidas en el último año, con pagos, envíos y estados variados | ✅ |
+| Tests E2E | Playwright en `frontend/e2e/`: guard de rutas, login → dashboard, listado de órdenes → detalle, descarga de exportación CSV (4/4 verdes) | ✅ |
+| Hardening | Checklist de `docs/SEGURIDAD.md` verificado contra el entorno levantado; fixes aplicados durante la auditoría (ver abajo) | ✅ |
+| Documentación | `README.md` final según `docs/README-TPL.md` (stack, puesta en marcha, 10 CU, AI Engineering, MCP, seguridad, tests) | ✅ |
+| Verificación final | Backend 111 tests + ruff · frontend `tsc` + eslint + 15 unit + 4 E2E · auditoría punto por punto del plan | ✅ |
+
+### Fixes de la auditoría final
+
+- **Confirmación del chat (5.2):** el modelo ya no ve `WRITE_TOOLS`; sólo puede proponer con
+  `proponer_accion` y el backend ejecuta recién en `POST /chat/confirm` (TTL 10 min). Salida MCP
+  normalizada para que la respuesta sea legible.
+- **Token en cliente:** `tokenStore` decodifica `exp` y descarta tokens vencidos
+  (`frontend/src/lib/token.ts`), con ADR `docs/adr/0004-token-de-sesion-en-localstorage.md`.
+- **Límite de cuerpo:** `413` para bodies > 2 MB (`app/middleware/security.py`).
+- **Login local:** default `false` y bloqueado cuando `ENV=production`, además de la flag.
+- **XLSX:** celdas de texto forzadas a `data_type="s"` + formato `@` (inyección de fórmula).
+- **Validación de entrada:** `pattern` de email en los schemas; `exclude_unset` en proveedores;
+  `limit` acotado en reportes y movimientos de stock.
+- **`.env.example`:** sin plantillas que parezcan credenciales reales.
+- **UI:** chips de `tool_calls` leen `name` del tool call (mostraban siempre "consulta").
 
 ---
 

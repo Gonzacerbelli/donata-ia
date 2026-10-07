@@ -5,7 +5,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { chatApi } from "@/features/chat/api";
 import { useChatMessages } from "@/features/chat/hooks";
 import { ApiError } from "@/lib/http";
-import type { ChatMessage } from "@/types/domain";
+import type { ChatMessage, PendingAction } from "@/types/domain";
 
 const THREAD_KEY = "donata.chat.thread";
 
@@ -27,6 +27,7 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49,10 +50,68 @@ export function ChatWidget() {
 
   const canSend = input.trim().length > 0 && !pending && retryAfter === 0;
 
+  function appendAssistant(response: {
+    thread_id: string;
+    response: string;
+    tool_calls: Record<string, unknown>[];
+  }) {
+    setMessages((current) => [
+      ...current,
+      {
+        id: `local-assistant-${Date.now()}`,
+        thread_id: response.thread_id,
+        role: "assistant",
+        content: response.response,
+        tool_calls: response.tool_calls,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }
+
+  function handleFailure(err: unknown) {
+    if (err instanceof ApiError) {
+      setError(err.message);
+      if (err.retryAfter) setRetryAfter(err.retryAfter);
+    } else {
+      setError("El asistente no está disponible en este momento.");
+    }
+  }
+
+  async function handleConfirm() {
+    if (!pendingAction) return;
+    setError(null);
+    setPending(true);
+    try {
+      const response = await chatApi.confirm(threadId, pendingAction.token);
+      setPendingAction(null);
+      appendAssistant(response);
+    } catch (err) {
+      handleFailure(err);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function handleCancelAction() {
+    setPendingAction(null);
+    setMessages((current) => [
+      ...current,
+      {
+        id: `local-cancel-${Date.now()}`,
+        thread_id: threadId,
+        role: "assistant",
+        content: "Acción cancelada. No se modificó nada.",
+        tool_calls: [],
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text) return;
     setError(null);
+    setPendingAction(null);
     setInput("");
     setPending(true);
     const optimistic: ChatMessage = {
@@ -66,24 +125,10 @@ export function ChatWidget() {
     setMessages((current) => [...current, optimistic]);
     try {
       const response = await chatApi.send(threadId, text);
-      setMessages((current) => [
-        ...current,
-        {
-          id: `local-assistant-${Date.now()}`,
-          thread_id: response.thread_id,
-          role: "assistant",
-          content: response.response,
-          tool_calls: response.tool_calls,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setPendingAction(response.pending_action);
+      appendAssistant(response);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-        if (err.retryAfter) setRetryAfter(err.retryAfter);
-      } else {
-        setError("El asistente no está disponible en este momento.");
-      }
+      handleFailure(err);
     } finally {
       setPending(false);
     }
@@ -94,6 +139,7 @@ export function ChatWidget() {
     localStorage.setItem(THREAD_KEY, created);
     setThreadId(created);
     setMessages([]);
+    setPendingAction(null);
     setError(null);
   }
 
@@ -147,7 +193,7 @@ export function ChatWidget() {
                           key={index}
                           className="rounded bg-slate-50 px-2 py-0.5 text-[10px] text-slate-400"
                         >
-                          {String((call as { tool?: string }).tool ?? "consulta")}
+                          {String((call as { name?: string }).name ?? "consulta")}
                         </span>
                       ))}
                     </div>
@@ -167,6 +213,31 @@ export function ChatWidget() {
             <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
               {error}
             </p>
+          )}
+
+          {pendingAction && (
+            <div className="border-t border-amber-100 bg-amber-50 px-3 py-3">
+              <p className="text-xs font-semibold text-amber-800">Acción pendiente de confirmación</p>
+              <p className="mt-1 text-xs text-amber-700">{pendingAction.summary}</p>
+              <div className="mt-2 flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isLoading={pending}
+                  onClick={() => void handleConfirm()}
+                >
+                  Confirmar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={handleCancelAction}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
           )}
 
           <div className="flex items-end gap-2 border-t border-slate-100 p-3">
