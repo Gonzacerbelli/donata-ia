@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     local_admin_password: str = "cambiar-esta-clave"
 
     cors_origins: list[str] = ["http://localhost:5173"]
+    frontend_url: str = "http://localhost:5173"
 
     rate_limit_enabled: bool = True
     rate_limit_login: int = 10

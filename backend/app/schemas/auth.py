@@ -24,6 +24,10 @@ class GoogleAuthCallback(BaseModel):
     state: str
 
 
+class AuthCodeExchange(BaseModel):
+    code: str = Field(min_length=1, max_length=200)
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

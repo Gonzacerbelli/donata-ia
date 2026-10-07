@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { ApiError } from "@/lib/http";
 
+import { exchangeAuthCode } from "../api";
 import { useAuth } from "../useAuth";
 
 export function AuthCallbackPage() {
@@ -13,18 +15,28 @@ export function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = params.get("token");
-    if (!token) {
-      setError("La respuesta de Google no incluyó un token válido.");
+    const oauthError = params.get("error");
+    if (oauthError) {
+      setError(oauthError);
+      return;
+    }
+    const code = params.get("code");
+    if (!code) {
+      setError("La respuesta de Google no incluyó un código de acceso válido.");
       return;
     }
     let active = true;
-    signInWithToken(token)
-      .then(() => {
+    exchangeAuthCode(code)
+      .then(async (response) => {
+        await signInWithToken(response.access_token);
         if (active) navigate("/dashboard", { replace: true });
       })
-      .catch(() => {
-        if (active) setError("No pudimos completar el inicio de sesión.");
+      .catch((cause) => {
+        if (active) {
+          setError(
+            cause instanceof ApiError ? cause.message : "No pudimos completar el inicio de sesión.",
+          );
+        }
       });
     return () => {
       active = false;
