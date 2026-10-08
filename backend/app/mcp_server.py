@@ -6,6 +6,8 @@ aplicación. Se ejecuta como proceso hijo del agente:
     python -m app.mcp_server
 """
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from app.db import get_db
@@ -15,6 +17,7 @@ from app.repositories import sales as sales_repo
 from app.schemas.entities import (
     ClientCreate,
     PaymentCreate,
+    ProductUpdate,
     SaleCreate,
     SaleUpdate,
 )
@@ -22,6 +25,7 @@ from app.services import clients as clients_service
 from app.services import products as products_service
 from app.services import reports as reports_service
 from app.services import sales as sales_service
+from app.services import stock as stock_service
 from app.services.llm import rag as rag_service
 from app.services.llm import vector_store
 
@@ -97,11 +101,23 @@ async def listar_clientes(query: str = "", tipo: str = "") -> list[dict]:
 
 @mcp.tool()
 async def crear_cliente(
-    nombre: str, telefono: str = "", email: str = "", tipo: str = "minorista"
+    nombre: str,
+    telefono: str = "",
+    email: str = "",
+    direccion: str = "",
+    tipo: Literal["minorista", "mayorista", "ambos"] = "minorista",
+    notas: str = "",
 ) -> dict:
-    """Crea un cliente nuevo."""
+    """Crea un cliente nuevo. Pasá `direccion` (domicilio de entrega) y `telefono` si los tenés."""
     db = await get_db()
-    body = ClientCreate(name=nombre, phone=telefono or None, email=email or None, type=tipo)
+    body = ClientCreate(
+        name=nombre,
+        phone=telefono or None,
+        email=email or None,
+        address=direccion or None,
+        type=tipo,
+        notes=notas or None,
+    )
     client = await clients_service.create_client(db, body)
     return client.model_dump(mode="json")
 
@@ -120,9 +136,22 @@ async def crear_venta(
     items: list[dict],
     descuento: int = 0,
     envio: int = 0,
-    tipo_cliente: str = "",
+    tipo_cliente: Literal["", "minorista", "mayorista"] = "",
+    notas: str = "",
+    pago_porcentaje: float = 0,
+    pago_monto: int = 0,
+    pago_tipo: Literal["adelanto", "pago"] = "adelanto",
+    pago_metodo: str = "",
 ) -> dict:
-    """Registra una venta. Cada ítem admite product_id+qty o description+qty+unit_price."""
+    """Registra una venta y, si lo pedís, su primer pago en la misma operación.
+
+    - items: [{"product_id": "<id>", "qty": 7}] o
+      [{"description": "...", "qty": 7, "unit_price": n}].
+    - envio: costo de envío en pesos enteros.
+      notas: detalle libre, p. ej. "Envío por Andreani".
+    - pago_porcentaje (0-100) o pago_monto (pesos) registran la seña al crear la venta;
+      pago_tipo es "adelanto" (seña) o "pago" (cobro total) y pago_metodo p. ej. "Efectivo".
+    """
     db = await get_db()
     body = SaleCreate(
         client_id=cliente_id,
@@ -130,14 +159,31 @@ async def crear_venta(
         discount=descuento,
         shipping_cost=envio,
         client_type=tipo_cliente or None,
+        notes=notas or None,
     )
     sale = await sales_service.create_sale(db, body)
+    monto = int(pago_monto)
+    if monto <= 0 and pago_porcentaje:
+        monto = round(sale.total * float(pago_porcentaje) / 100)
+    if monto > sale.total:
+        await sales_service.delete_sale(db, sale.id)
+        raise ValueError(
+            f"El pago inicial ({monto}) no puede superar el total de la venta ({sale.total})"
+        )
+    if monto > 0:
+        sale = await sales_service.add_payment(
+            db,
+            sale.id,
+            PaymentCreate(amount=monto, type=pago_tipo, method=pago_metodo or None),
+        )
     return sale.model_dump(mode="json")
 
 
 @mcp.tool()
-async def registrar_pago(venta_id: str, monto: int, tipo: str = "pago") -> dict:
-    """Registra un pago o adelanto sobre una venta."""
+async def registrar_pago(
+    venta_id: str, monto: int, tipo: Literal["adelanto", "pago"] = "pago"
+) -> dict:
+    """Registra un pago sobre una venta existente: `tipo` "adelanto" (seña) o "pago" (saldo)."""
     db = await get_db()
     sale = await sales_service.add_payment(db, venta_id, PaymentCreate(amount=monto, type=tipo))
     return sale.model_dump(mode="json")
@@ -149,6 +195,29 @@ async def cancelar_venta(venta_id: str) -> dict:
     db = await get_db()
     sale = await sales_service.update_sale(db, venta_id, SaleUpdate(status="cancelado"))
     return sale.model_dump(mode="json")
+
+
+@mcp.tool()
+async def reponer_stock(producto_id: str, cantidad: int = 0, precio_venta: int = 0) -> dict:
+    """Suma stock a un producto y/o actualiza su precio de venta.
+
+    - producto_id: id del producto (buscalo con `buscar_productos` o `consultar_producto`).
+    - cantidad: unidades a sumar al stock (0 si sólo cambia el precio).
+    - precio_venta: nuevo precio minorista en pesos enteros (0 = no cambiar).
+    """
+    db = await get_db()
+    if cantidad < 0 or precio_venta < 0:
+        raise ValueError("La cantidad y el precio de venta no pueden ser negativos")
+    if cantidad == 0 and precio_venta == 0:
+        raise ValueError("Indicá la cantidad a reponer, el precio de venta o ambos")
+    product = await products_service.get_product_or_404(db, producto_id)
+    if cantidad:
+        product = await stock_service.adjust_stock(db, producto_id, cantidad, reason="reposición")
+    if precio_venta:
+        product = await products_service.update_product(
+            db, producto_id, ProductUpdate(price=int(precio_venta))
+        )
+    return _product_dict(product)
 
 
 @mcp.tool()

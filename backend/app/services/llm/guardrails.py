@@ -173,6 +173,25 @@ IN_SCOPE_VERBS = [
     "reponer",
 ]
 
+WRITE_VERBS = [
+    "crear",
+    "crea",
+    "cargar",
+    "carga",
+    "registrar",
+    "registra",
+    "agregar",
+    "agrega",
+    "modificar",
+    "actualizar",
+    "editar",
+    "cancelar",
+    "pagar",
+    "eliminar",
+    "borrar",
+    "reponer",
+]
+
 AYUDA_TERMS = [
     "hola",
     "buenos dias",
@@ -233,6 +252,11 @@ def is_off_topic(text: str) -> bool:
     return classify_topic(text) in ("fuera_de_contexto", "injection")
 
 
+def mentions_write_action(text: str) -> bool:
+    """True si el pedido del usuario implica crear, modificar o registrar algo."""
+    return _contains_any(_normalize(text), WRITE_VERBS)
+
+
 def validate_answer(answer: str) -> list[str]:
     issues: list[str] = []
     if _HEX_ID.search(answer):
@@ -240,3 +264,19 @@ def validate_answer(answer: str) -> list[str]:
     if _MONEY_DECIMAL.search(answer):
         issues.append("La respuesta usa montos decimales; Donata trabaja con pesos enteros.")
     return issues
+
+
+def _decimal_to_int(match: re.Match) -> str:
+    raw = match.group(0)
+    if "," in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    try:
+        return str(int(round(float(raw))))
+    except ValueError:
+        return match.group(0)
+
+
+def sanitize_answer(answer: str) -> str:
+    """Sustituye ids internos y montos decimales por valores seguros en pesos enteros."""
+    text = _HEX_ID.sub("un id interno", answer)
+    return _MONEY_DECIMAL.sub(_decimal_to_int, text)

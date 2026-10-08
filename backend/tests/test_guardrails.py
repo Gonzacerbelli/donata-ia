@@ -97,3 +97,35 @@ def test_validate_answer_flags_decimal_money():
 
 def test_validate_answer_ok_on_clean():
     assert validate_answer("El tapiz queda en 45000 pesos con entrega el viernes.") == []
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("quiero crear una orden para marta", True),
+        ("creá un cliente llamada Ana", True),
+        ("registra una seña del 50%", True),
+        ("¿cuántos productos tengo con stock?", False),
+        ("buscame los clientes", False),
+    ],
+)
+def test_mentions_write_action(text: str, expected: bool):
+    from app.services.llm.guardrails import mentions_write_action
+
+    assert mentions_write_action(text) is expected
+
+
+def test_sanitize_answer_quita_ids_y_decimales():
+    from app.services.llm.guardrails import sanitize_answer
+
+    answer = "Quedó registrado el producto 507f1f77bcf86cd799439011 con total de 45000.50 pesos."
+    clean = sanitize_answer(answer)
+    assert "507f1f77bcf86cd799439011" not in clean
+    assert "45000.50" not in clean
+    assert validate_answer(clean) == []
+
+
+def test_sanitize_answer_respeta_miles_con_punto():
+    from app.services.llm.guardrails import sanitize_answer
+
+    assert sanitize_answer("El precio es 35.000 pesos") == "El precio es 35.000 pesos"
