@@ -144,7 +144,7 @@ def _parse_sse(text: str) -> list[dict]:
     return events
 
 
-def _fake_agent_env(monkeypatch, rounds: list[list]):
+def _fake_agent_env(monkeypatch, rounds: list[list], write_tools: list | None = None):
     """LLM falso que consume `rounds` de chunks AIMessageChunk y una tool de lectura."""
     from langchain_core.tools import tool
 
@@ -176,7 +176,7 @@ def _fake_agent_env(monkeypatch, rounds: list[list]):
     fake = FakeLLM()
 
     async def fake_toolsets():
-        return [buscar_productos], []
+        return [buscar_productos, *(write_tools or [])], list(write_tools or [])
 
     monkeypatch.setattr(agent, "get_llm", lambda temperature=0: fake)
     monkeypatch.setattr(agent, "toolsets", fake_toolsets)
@@ -205,6 +205,25 @@ def _text_round():
     from langchain_core.messages import AIMessageChunk
 
     return [AIMessageChunk(content="Tenés "), AIMessageChunk(content="3 productos con stock.")]
+
+
+def _named_call_round(name: str, args: dict, call_id: str = "call-1"):
+    import json as _json
+
+    from langchain_core.messages import AIMessageChunk
+
+    return [
+        AIMessageChunk(
+            content="",
+            tool_call_chunks=[{"name": name, "args": _json.dumps(args), "id": call_id, "index": 0}],
+        )
+    ]
+
+
+def _single_text_round(text: str):
+    from langchain_core.messages import AIMessageChunk
+
+    return [AIMessageChunk(content=text)]
 
 
 async def test_run_agent_emits_token_and_tool_events(monkeypatch):
@@ -261,6 +280,219 @@ async def test_run_agent_default_emit_is_noop(monkeypatch):
     reply, log = await agent.run_agent("cuántos productos tengo?", emit=None)
     assert reply == "Tenés 3 productos con stock."
     assert log == []
+
+
+async def test_run_agent_query_blocks_direct_write_call(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _named_call_round("crear_venta", {"cliente_id": "1", "items": [{"qty": 7}]}),
+            _single_text_round("Camila Duarte no tiene órdenes pendientes."),
+        ],
+    )
+    events = []
+
+    async def emit(event, payload):
+        events.append((event, payload))
+
+    message = "quiero saber las ordenes de camila duarte y cuanta plata debe"
+    reply, log = await agent.run_agent(message, emit=emit)
+
+    assert log[0]["ok"] is False
+    assert log[0]["result"] == agent.QUERY_NO_PROPOSAL
+    assert reply == "Camila Duarte no tiene órdenes pendientes."
+    assert not any(entry["ok"] for entry in log)
+    tool_end = [payload for event, payload in events if event == "tool_end"][0]
+    assert tool_end["ok"] is False
+    assert "Confirmala en la pantalla" not in reply
+
+
+async def test_run_agent_query_blocks_propose_tool_call(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _named_call_round(
+                "proponer_accion",
+                {
+                    "herramienta": "crear_venta",
+                    "argumentos": {"cliente_id": "1", "items": [{"qty": 7}]},
+                    "resumen": "Venta",
+                },
+            ),
+            _single_text_round("Las órdenes de Camila están al día."),
+        ],
+    )
+    message = "buscá las ordenes de camila duarte y su saldo"
+    reply, log = await agent.run_agent(message)
+
+    assert log[0]["name"] == "proponer_accion"
+    assert log[0]["ok"] is False
+    assert log[0]["result"] == agent.QUERY_NO_PROPOSAL
+    assert reply == "Las órdenes de Camila están al día."
+
+
+async def test_run_agent_text_without_proposal_cannot_ask_confirmation(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round("Confirma en la pantalla para ejecutar la búsqueda."),
+            _single_text_round("Camila debe 53.200 en 1 orden."),
+        ],
+    )
+    message = "cuánto debe camila duarte"
+    reply, log = await agent.run_agent(message)
+
+    assert reply == "Camila debe 53.200 en 1 orden."
+    assert "pantalla" not in reply
+    assert not agent._has_proposal(log)
+
+
+async def test_run_agent_strips_confirmation_when_model_repeats(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round("Camila debe 53.200. Confirma en la pantalla para ejecutar."),
+            _single_text_round("Camila debe 53.200. Confirma en la pantalla para ejecutar."),
+        ],
+    )
+    message = "cuánto debe camila duarte"
+    reply, log = await agent.run_agent(message)
+
+    assert reply == "Camila debe 53.200."
+    assert "pantalla" not in reply
+    assert not agent._has_proposal(log)
+
+
+async def test_run_agent_strips_confirmation_without_screen_word(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round(
+                "Los clientes con pedido pendiente son 2. Confirma esta acción para continuar."
+            ),
+            _single_text_round(
+                "Los clientes con pedido pendiente son 2. Confirma esta acción para continuar."
+            ),
+        ],
+    )
+    message = "cuáles son los clientes con pedidos pendientes de entrega y pago"
+    reply, log = await agent.run_agent(message)
+
+    assert reply == "Los clientes con pedido pendiente son 2."
+    assert not agent._has_proposal(log)
+
+
+async def test_run_agent_executes_json_tool_call_written_as_text(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round(
+                "Busco:\n```json\n"
+                '{"name": "buscar_productos", "arguments": {"query": "alfombra"}}\n```\n'
+                "Confirma esta acción para continuar."
+            ),
+            _single_text_round("Hay 3 productos con stock."),
+        ],
+    )
+    message = "cuántos productos tengo con stock?"
+    reply, log = await agent.run_agent(message)
+
+    assert log[0]["name"] == "buscar_productos"
+    assert log[0]["ok"] is True
+    assert reply == "Hay 3 productos con stock."
+    assert "Confirma" not in reply
+    assert "```" not in reply
+    assert not agent._has_proposal(log)
+
+
+async def test_run_agent_write_message_still_proposes(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _named_call_round("crear_venta", {"cliente_id": "1", "items": [{"qty": 7}]}),
+            _single_text_round(
+                "Propuesta registrada: crear venta de 7 unidades. Confirmala en la pantalla."
+            ),
+        ],
+        write_tools=[_stub_write_tool()],
+    )
+    message = "creá una venta de 7 soportes para marta"
+    reply, log = await agent.run_agent(message)
+
+    assert log[0]["name"] == "proponer_accion"
+    assert log[0]["ok"] is True
+    assert "Confirmala en la pantalla" in reply
+
+
+async def test_run_agent_executes_read_tool_call_written_as_text(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round('Listo, busco: buscar_productos(query="alfombra")'),
+            _single_text_round("Tenés 3 productos con stock."),
+        ],
+    )
+    events = []
+
+    async def emit(event, payload):
+        events.append((event, payload))
+
+    reply, log = await agent.run_agent("buscá alfombras", emit=emit)
+
+    assert log[0]["name"] == "buscar_productos"
+    assert log[0]["arguments"] == {"query": "alfombra"}
+    assert log[0]["ok"] is True
+    assert reply == "Tenés 3 productos con stock."
+    tool_events = [event for event, _ in events if event != "token"]
+    assert tool_events == ["tool_start", "tool_end"]
+
+
+async def test_run_agent_text_call_recovery_is_capped(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round('buscar_productos(query="alfombra")'),
+            _single_text_round('buscar_productos(query="alfombra")'),
+            _single_text_round('buscar_productos(query="alfombra")'),
+            _single_text_round("No encontré resultados."),
+        ],
+    )
+    reply, log = await agent.run_agent("buscá alfombras")
+
+    assert len(log) == agent.MAX_TEXT_RECOVERIES
+    assert reply == "No encontré resultados."
+
+
+def test_result_ok_flags_mcp_validation_errors():
+    from app.services.llm import agent
+
+    validation = [
+        {
+            "type": "text",
+            "text": "2 validation errors for call[listar_ventas]\nestado\n"
+            "  Input should be a valid string",
+        }
+    ]
+    assert agent._result_ok("listar_ventas", validation) is False
+    assert agent._result_ok("listar_ventas", [{"type": "text", "text": "[]"}]) is True
 
 
 async def test_chat_blocks_off_topic(auth_client):
@@ -540,6 +772,27 @@ def test_propose_call_written_as_text_becomes_a_proposal():
     assert "falta 'cliente_id'" in invalid["result"]
 
     assert agent._text_call_entry("¿Cuánto stock hay en el depósito?", write_tools) is None
+
+
+def test_json_object_call_written_as_text_is_detected():
+    from app.services.llm import agent
+
+    read_text = (
+        "Listo, verifico:\n```json\n"
+        '{"name": "listar_ventas", "arguments": {"estado": "pendiente", "limite": 20}}\n```'
+    )
+    assert agent._extract_text_call(read_text, {"listar_ventas"}) == (
+        "listar_ventas",
+        {"estado": "pendiente", "limite": 20},
+    )
+    assert agent._extract_text_call(read_text, {"buscar_productos"}) is None
+
+    write_text = '{"arguments": {"cliente_id": "1", "items": [{"qty": 7}]}, "name": "crear_venta"}'
+    entry = agent._text_call_entry(write_text, [_stub_write_tool()])
+    assert entry is not None
+    assert entry["name"] == "proponer_accion"
+    assert entry["ok"] is True
+    assert entry["arguments"]["herramienta"] == "crear_venta"
 
 
 async def test_check_references_rejects_invented_ids(db):

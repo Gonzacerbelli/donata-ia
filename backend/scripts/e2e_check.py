@@ -1,5 +1,8 @@
 """Chequeo end-to-end del asistente con Ollama real.
 
+Corre contra la base de test (`MONGO_DB_TEST`, por defecto `donata_ia_test`) y la
+resetea al empezar, para no contaminar la base de demo.
+
 Uso:
     docker compose run --rm --no-deps api python -m scripts.e2e_check
 """
@@ -9,10 +12,14 @@ import time
 
 from bson import ObjectId
 
+from app.config import settings
 from app.db import close_db, connect_db, get_db
 from app.repositories import clients as clients_repo
 from app.repositories import products as products_repo
+from app.repositories import sales as sales_repo
+from app.schemas.entities import SaleCreate
 from app.services import chat_history
+from app.services import sales as sales_service
 from app.services.llm import agent, assistant, guardrails, rag
 
 ORDEN_DE_EJEMPLO = (
@@ -20,6 +27,22 @@ ORDEN_DE_EJEMPLO = (
     "compro 7 soporte para plantas trípode, pago la mitad con seña y se envia por andreani. "
     "el numero de telefono es 1165245400"
 )
+
+RESET_COLLECTIONS = [
+    "providers",
+    "products",
+    "clients",
+    "sales",
+    "stock_moves",
+    "notification_states",
+    "chat_messages",
+    "chat_threads",
+]
+
+
+async def _reset(db) -> None:
+    for name in RESET_COLLECTIONS:
+        await db[name].delete_many({})
 
 
 async def _seed(db) -> None:
@@ -75,8 +98,10 @@ async def _assert_refs_exist(db, args: dict) -> None:
 
 
 async def main() -> None:
+    settings.mongo_db = settings.mongo_db_test
     await connect_db()
     db = await get_db()
+    await _reset(db)
     await _seed(db)
 
     print("\n=== 1) Consulta de datos (debe usar herramientas MCP) ===")
@@ -171,6 +196,46 @@ async def main() -> None:
     print(f"Tokens incrementales: {len(tokens)}")
     print(f"Acción propuesta: {final['pending_action']['tool']}")
     print("Streaming verificado contra Ollama real ✓")
+
+    print("\n=== 6) Consulta de órdenes: no propone acciones ni pide confirmación ===")
+    clientes = await clients_repo.list_clients(db)
+    cliente_e2e = next((c for c in clientes if c.name == "Cliente E2E"), None)
+    assert cliente_e2e is not None, "falta el cliente de prueba"
+    ventas = await sales_repo.list_sales(db, client_id=str(cliente_e2e.id))
+    if not ventas:
+        productos = await products_repo.list_products(db, active_only=True)
+        con_stock = max((p for p in productos if p.stock > 0), key=lambda p: p.stock)
+        await sales_service.create_sale(
+            db,
+            SaleCreate(
+                client_id=str(cliente_e2e.id),
+                items=[{"product_id": str(con_stock.id), "qty": min(2, con_stock.stock)}],
+            ),
+        )
+    consulta = "quiero saber las ordenes de Cliente E2E y cuanta plata debe"
+    assert guardrails.is_read_request(consulta), "la consulta no se detectó como de lectura"
+    ventas = await sales_repo.list_sales(db, client_id=str(cliente_e2e.id))
+    deuda_esperada = sum(
+        s.total - sum(p.amount for p in s.payments) for s in ventas if s.status != "cancelado"
+    )  # misma regla que el UI: las canceladas no se cuentan
+    thread_4 = f"hilo-e2e-consulta-{int(time.time() * 1000)}"
+    result = await assistant.handle_message(db, "e2e-check", thread_4, consulta)
+    print("Respuesta:", result["response"])
+    print("Tool calls:", [c["name"] for c in result["tool_calls"]])
+    assert result["pending_action"] is None, "una consulta no debe proponer acciones"
+    assert "Propuesta registrada" not in result["response"], "la consulta respondió como propuesta"
+    assert "Confirmala" not in result["response"], "la consulta pidió confirmación"
+    usadas = {c["name"] for c in result["tool_calls"]}
+    assert not usadas & agent.WRITE_TOOLS, f"la consulta usó herramientas de escritura: {usadas}"
+    assert "proponer_accion" not in usadas, "la consulta llamó a proponer_accion"
+    assert "consultar_saldo_cliente" in usadas, usadas
+    assert "e2e" in result["response"].lower(), "no respondió sobre el cliente pedido"
+    reportado = result["response"].replace(".", "").replace(",", "").replace(" ", "")
+    assert str(deuda_esperada) in reportado, (
+        f"debe reportar {deuda_esperada} (misma regla que el UI), respondió: {result['response']}"
+    )
+    print(f"Deuda reportada coincide con el cálculo del UI ({deuda_esperada}) ✓")
+    print("Consulta resuelta sin propuesta ni confirmación ✓")
 
     await close_db()
 

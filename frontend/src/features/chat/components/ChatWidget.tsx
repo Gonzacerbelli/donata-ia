@@ -25,7 +25,6 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
-  const [streamingText, setStreamingText] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
@@ -77,7 +76,7 @@ export function ChatWidget() {
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, pending, streamingText, open]);
+  }, [messages, pending, open]);
 
   useEffect(() => {
     if (retryAfter <= 0) return;
@@ -151,7 +150,6 @@ export function ChatWidget() {
     setPendingAction(null);
     setInput("");
     setPending(true);
-    setStreamingText(null);
     const optimistic: ChatMessage = {
       id: `local-user-${Date.now()}`,
       thread_id: threadId,
@@ -166,9 +164,7 @@ export function ChatWidget() {
     let final: ChatResponse | null = null;
     try {
       for await (const event of chatApi.stream(threadId, text, controller.signal)) {
-        if (event.event === "token") {
-          setStreamingText((current) => (current ?? "") + event.data.delta);
-        } else if (event.event === "done") {
+        if (event.event === "done") {
           final = event.data;
         } else if (event.event === "error") {
           setError(event.data.detail);
@@ -178,7 +174,6 @@ export function ChatWidget() {
       if (!controller.signal.aborted) handleFailure(err);
     } finally {
       abortRef.current = null;
-      setStreamingText(null);
       setPending(false);
     }
     if (final) {
@@ -284,17 +279,10 @@ export function ChatWidget() {
                 </div>
               ))
             )}
-            {pending && streamingText !== null && (
-              <div className="text-left">
-                <div className="inline-block max-w-[85%] whitespace-pre-wrap rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800">
-                  {streamingText}
-                </div>
-              </div>
-            )}
-            {pending && streamingText === null && (
+            {pending && (
               <div className="flex items-center gap-2 text-sm text-slate-400">
                 <Spinner />
-                Pensando…
+                Cargando…
               </div>
             )}
           </div>

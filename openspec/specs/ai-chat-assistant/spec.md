@@ -196,14 +196,24 @@ Si una propuesta usa ids de cliente, producto o venta que no existen, no SHALL r
 
 ### Requirement: El modelo sólo actúa mediante las herramientas MCP en español
 
-El agente SHALL actuar sólo a través de herramientas MCP en español (productos, precios, clientes, ventas, resumen del negocio, documentación y las de escritura `crear_cliente`, `crear_venta`, `registrar_pago`, `cancelar_venta`, `reponer_stock`) y no SHALL acceder a la base de datos ni ejecutar código arbitrario.
+El agente SHALL actuar sólo a través de herramientas MCP en español: de lectura (productos, precios, productos a reponer, clientes, ventas, saldo y pendientes de clientes, resumen del negocio y documentación) y de escritura (`crear_cliente`, `crear_venta`, `registrar_pago`, `cancelar_venta`, `reponer_stock`); no SHALL acceder a la base de datos ni ejecutar código arbitrario.
 
-<!-- Pendiente: el catálogo de tools del CU07 (12 tools con otros nombres) difiere de las 13 tools MCP reales -->
+<!-- Pendiente: el catálogo de tools del CU07 (12 tools con otros nombres) difiere de las 16 tools MCP reales -->
 
 #### Scenario: Respuesta con datos reales
 
 - **WHEN** el usuario pregunta cuánto stock hay
 - **THEN** la respuesta se construye con lo que devuelven las herramientas de productos, no con valores inventados
+
+#### Scenario: Clientes con pedidos pendientes
+
+- **WHEN** el usuario pregunta qué clientes tienen pedidos sin entregar o están pendientes de pago
+- **THEN** la respuesta se construye con `listar_clientes_pendientes` (nombre y saldo agregados por cliente, sin canceladas), sin iterar cliente por cliente ni usar ids en el texto
+
+#### Scenario: Productos a reponer
+
+- **WHEN** el usuario pregunta qué productos debe reponer o cuáles tienen stock bajo
+- **THEN** la respuesta se construye con `listar_productos_a_reponer` (los que están en el mínimo o por debajo), nombrando los productos y su stock, sin pedirle ids al usuario ni proponer una escritura
 
 #### Scenario: Acción fuera del catálogo
 
@@ -263,6 +273,11 @@ Cada respuesta SHALL renderizarse como burbuja de texto y, cuando incluya `tool_
 
 - **WHEN** la respuesta no usa herramientas
 - **THEN** se muestra sólo el texto de la burbuja del asistente
+
+#### Scenario: Mientras se genera la respuesta
+
+- **WHEN** el usuario envía un mensaje y el turno sigue en curso
+- **THEN** el panel muestra un indicador de carga ("Cargando…") en lugar de texto parcial crudo, y al recibir `done` lo reemplaza por la respuesta final saneada
 
 ### Requirement: Endpoint de streaming SSE para el chat
 

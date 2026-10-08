@@ -4,6 +4,10 @@ Genera proveedores, productos (macramé), clientes y órdenes distribuidas en el
 último año, con pagos y estados variados, para que el dashboard y los listados
 muestren información significativa.
 
+Resetea las colecciones de negocio y de chat antes de sembrar, de modo que cada
+corrida deja una base consistente (los usuarios se conservan). Cada cliente
+queda con al menos una orden.
+
 Uso:
     docker compose run --rm --no-deps api python -m scripts.seed_demo
 """
@@ -28,6 +32,8 @@ RESET_COLLECTIONS = [
     "sales",
     "stock_moves",
     "notification_states",
+    "chat_messages",
+    "chat_threads",
 ]
 
 PROVIDERS = [
@@ -70,17 +76,92 @@ PRODUCTS = [
     ("Soporte para plantas trípode", "macetas", 11000, 8900, 6000, 16, 5),
 ]
 
+# name, type, phone, email, instagram, address, notes
 CLIENTS = [
-    ("Boutique Sol y Luna", "mayorista", "11-4001-2233", "hola@soyluna.com"),
-    ("Deco Casa Norte", "mayorista", "11-4002-3344", "compras@decocasanorte.com"),
-    ("Ana Pérez", "minorista", "11-5555-1010", None),
-    ("Martina Gómez", "minorista", "11-5555-2020", None),
-    ("Lucas Fernández", "minorista", "11-5555-3030", None),
-    ("Sofía Rossi", "minorista", "11-5555-4040", None),
-    ("Regalería Capricho", "ambos", "11-4003-4455", "ventas@regaleriacapricho.com"),
-    ("Camila Duarte", "minorista", "11-5555-5050", None),
-    ("Julián Vega", "minorista", "11-5555-6060", None),
-    ("Casa & Estilo", "mayorista", "11-4004-5566", "compras@casaestilo.com"),
+    (
+        "Boutique Sol y Luna",
+        "mayorista",
+        "11-4001-2233",
+        "hola@soyluna.com",
+        "@boutiquesolyluna",
+        "Av. Santa Fe 2450, CABA",
+        "Compra por temporada, paga a 30 días",
+    ),
+    (
+        "Deco Casa Norte",
+        "mayorista",
+        "11-4002-3344",
+        "compras@decocasanorte.com",
+        "@decocasanorte",
+        "Av. Maipú 1180, Vicente López",
+        None,
+    ),
+    (
+        "Ana Pérez",
+        "minorista",
+        "11-5555-1010",
+        "ana.perez@mail.com",
+        "@anap",
+        "Juncal 890, CABA",
+        None,
+    ),
+    ("Martina Gómez", "minorista", "11-5555-2020", None, None, "Cabildo 1720, CABA", None),
+    ("Lucas Fernández", "minorista", "11-5555-3030", "lucasf@mail.com", None, None, None),
+    (
+        "Sofía Rossi",
+        "minorista",
+        "11-5555-4040",
+        None,
+        "@sofiarossi",
+        "Mitre 450, San Isidro",
+        None,
+    ),
+    (
+        "Regalería Capricho",
+        "ambos",
+        "11-4003-4455",
+        "ventas@regaleriacapricho.com",
+        "@regaleriacapricho",
+        "Belgrano 210, Martínez",
+        "Pide factura A",
+    ),
+    (
+        "Camila Duarte",
+        "minorista",
+        "11-5555-5050",
+        "camila.duarte@mail.com",
+        "@cami",
+        "Rivadavia 3300, CABA",
+        None,
+    ),
+    ("Julián Vega", "minorista", "11-5555-6060", None, None, "Las Heras 2210, CABA", None),
+    (
+        "Casa & Estilo",
+        "mayorista",
+        "11-4004-5566",
+        "compras@casaestilo.com",
+        "@casaestilo",
+        "Av. del Libertador 5600, CABA",
+        None,
+    ),
+    (
+        "Marta Ríos",
+        "minorista",
+        "11-5555-7070",
+        "marta.rios@mail.com",
+        None,
+        "Av. Libertador 312, Córdoba",
+        None,
+    ),
+    (
+        "Almacén de Ramos",
+        "ambos",
+        "11-4005-6677",
+        None,
+        "@almacenderamos",
+        "Alsina 55, Quilmes",
+        None,
+    ),
 ]
 
 PAYMENT_METHODS = ["efectivo", "transferencia", "mercadopago", "tarjeta"]
@@ -119,7 +200,7 @@ async def _seed(db, rng: random.Random) -> None:
         products.append(product)
 
     clients = []
-    for name, client_type, phone, email in CLIENTS:
+    for name, client_type, phone, email, instagram, address, notes in CLIENTS:
         clients.append(
             await clients_repo.create_client(
                 db,
@@ -128,9 +209,9 @@ async def _seed(db, rng: random.Random) -> None:
                     "type": client_type,
                     "phone": phone,
                     "email": email,
-                    "instagram": None,
-                    "address": None,
-                    "notes": None,
+                    "instagram": instagram,
+                    "address": address,
+                    "notes": notes,
                     "active": True,
                 },
             )
@@ -138,12 +219,13 @@ async def _seed(db, rng: random.Random) -> None:
 
     now = utcnow()
     sales_created = 0
-    for _ in range(48):
-        client = rng.choice(clients)
-        sale_date = now - timedelta(days=rng.randint(0, 364), hours=rng.randint(0, 20))
+
+    async def _create_order(client) -> None:
+        nonlocal sales_created
         chosen = [p for p in rng.sample(products, k=rng.randint(1, 3)) if p.stock > 0]
         if not chosen:
-            continue
+            return
+        sale_date = now - timedelta(days=rng.randint(0, 364), hours=rng.randint(0, 20))
         items = [
             SaleItemIn(product_id=str(product.id), qty=rng.randint(1, 4)) for product in chosen
         ]
@@ -163,7 +245,7 @@ async def _seed(db, rng: random.Random) -> None:
                 ),
             )
         except Exception:
-            continue
+            return
         sales_created += 1
 
         status = rng.choice(STATUSES)
@@ -182,6 +264,11 @@ async def _seed(db, rng: random.Random) -> None:
                 )
         if status != "pendiente":
             await sales_service.update_sale(db, sale.id, SaleUpdate(status=status))
+
+    for client in clients:
+        await _create_order(client)
+    for _ in range(48):
+        await _create_order(rng.choice(clients))
 
     print(
         f"Seed listo: {len(providers)} proveedores, {len(products)} productos, "

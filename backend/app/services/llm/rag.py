@@ -33,6 +33,7 @@ def get_llm(temperature: float | None = None) -> ChatOllama:
         model=settings.ollama_model,
         base_url=settings.ollama_base_url,
         temperature=settings.llm_temperature if temperature is None else temperature,
+        num_ctx=settings.ollama_num_ctx,
     )
 
 

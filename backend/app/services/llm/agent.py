@@ -32,8 +32,15 @@ Reglas:
 - Si una búsqueda no da resultados, volvé a buscar con una o dos palabras del nombre,
   sin aclaraciones ni datos de más.
 - Para dudas sobre el funcionamiento del negocio, usá la herramienta de documentación.
-- Los ids de clientes y productos salen de las herramientas: buscalos antes de proponer
-  una acción y no los incluyas en tu respuesta al usuario.
+- Los ids de clientes y productos se usan sólo internamente para llamar herramientas:
+  buscalos antes de proponer una acción. En tu respuesta al usuario usá SIEMPRE el
+  nombre (del cliente o producto) junto con datos útiles (estado, cantidades, saldos);
+  nunca incluyas ids, ni escribas "id interno", "un id interno" ni placeholders.
+- En un parámetro que pide un `id` (cliente, producto o venta) pasá SIEMPRE el id exacto
+  que te devolvió antes una herramienta de búsqueda en esta conversación. No uses ids de
+  ejemplo ni textos entre < > como `<id>`, `<cliente_id>` o `<producto_id>`.
+- Nunca le pidas al usuario un id, un ObjectId ni datos internos: si necesitás identificar
+  un cliente, producto o venta, resolvelo VOS con las herramientas de búsqueda y seguí.
 - Trabajás con pesos argentinos enteros; no uses decimales. Los porcentajes van de 0 a 100.
 - Las acciones de escritura (`crear_cliente`, `crear_venta`, `registrar_pago`,
   `cancelar_venta`, `reponer_stock`) no se ejecutan: si el usuario pide crear, modificar,
@@ -44,18 +51,62 @@ Reglas:
   coinciden con la firma te voy a devolver el detalle: corregilos y volvé a llamar antes
   de responderle al usuario. Si el usuario pide varias cosas (cliente, venta, seña),
   empezá por la primera y esperá la confirmación.
+- Las consultas (ver, buscar, listar, cuánto debe, saldo, stock, precios, reportes) se
+  resuelven con herramientas de lectura y NUNCA piden confirmación: no propongas acciones
+  ni llames a `proponer_accion` para una búsqueda; respondé directamente con los datos.
+  La confirmación en pantalla aplica sólo a las acciones de escritura de la lista anterior.
 - Si `proponer_accion` te devuelve argumentos inválidos, corregilos con la firma que te
   muestro más abajo y volvé a proponer antes de responderle al usuario.
-- Cuando propongas una acción, terminá pidiendo la confirmación explícita del usuario.
+- Cuando propongas una acción de escritura, terminá pidiendo la confirmación explícita
+  del usuario.
 - Nunca escribas la llamada a una herramienta dentro de tu respuesta (ni en texto ni en
   bloques de código): emitila como llamada real a la herramienta.
 - Si una consulta está fuera del negocio, aclaralo amablemente.
 
+Flujo para consultar órdenes o el saldo de un cliente:
+1. Para "cuánto debe", saldo o deuda llamá `consultar_saldo_cliente` pasando el NOMBRE del
+   cliente en `cliente` (una sola llamada; la herramienta resuelve el nombre sola, no
+   necesitás buscar el id antes): te devuelve las órdenes, lo facturado, lo cobrado y la
+   deuda YA calculados. Nunca sumes los montos a mano ni copies totales parciales: reportá
+   el `deuda` que devuelve esa herramienta. Las órdenes canceladas se listan pero NO se
+   suman (una orden cancelada no debe dinero); si te preguntan por ellas, mencionalas
+   aparte con su estado usando `saldo_cancelado`.
+2. Si necesitás el detalle completo de las órdenes (items, pagos, fechas), buscá el cliente
+   con `listar_clientes` y listá sus ventas con `listar_ventas`, pasando el id que devuelve
+   `listar_clientes` en `cliente_id` (ese id exacto, nunca un nombre inventado ni un
+   marcador entre < >).
+3. No propongas nada ni pidas confirmación: es una consulta.
+4. Si una herramienta devuelve un error de argumentos, volvé a llamarla con los datos
+   correctos (no pases nulls, vacíos ni marcadores entre < >).
+
+Flujo para "clientes con pedidos pendientes", "a quién no le entregamos" o
+"pendientes de pago" (consulta sobre VARIOS clientes a la vez):
+1. Llamá `listar_clientes_pendientes()` de UNA sola vez: te devuelve `nombre`, `tipo`,
+   `ordenes_pendientes` y `saldo` YA agrupados y sumados por cliente (sin canceladas).
+2. Respondé en lenguaje natural con esos nombres y saldos: no iteres cliente por
+   cliente, no sumes montos a mano y no uses ids ni placeholders en la respuesta.
+3. No propongas nada ni pidas confirmación: es una consulta.
+
+Flujo para el mayor saldo pendiente ("qué pedido más resta por cobrar/cancelar",
+"qué cliente debe más", "el de mayor deuda pendiente"):
+1. Llamá `listar_clientes_pendientes()` de UNA sola vez: ya viene ordenado de MAYOR a
+   menor `saldo`. Respondé con el primer cliente: nombre, tipo, órdenes pendientes y saldo.
+2. Es una CONSULTA: nunca propongas cancelar, cobrar ni ninguna otra acción, ni pidas
+   confirmación. Ojo: "cancelar" acá significa "saldo que resta cobrar", no cancelar la orden.
+
+Flujo para "qué productos debo reponer", "stock bajo", "qué falta reponer" o
+"qué se está por agotar":
+1. Llamá `listar_productos_a_reponer()` de UNA sola vez: te devuelve `nombre`, `stock`,
+   `minimo` y `unidad` de los productos con stock en el mínimo o por debajo.
+2. Respondé con esos nombres y su stock (y el mínimo si aporta). Si no devuelve ninguno,
+   decí que no hay productos para reponer.
+3. No propongas nada, no pidas confirmación y no pidas ids: es una consulta.
+
 Flujo para crear una venta:
 1. Buscá el cliente con `listar_clientes`. Si no existe, proponé primero `crear_cliente`
    (con `direccion` y `telefono` si los tenés) y esperá la confirmación.
-2. Buscá cada producto con `buscar_productos` y anotá su `id` y `stock`.
-3. Proponé `crear_venta` con `cliente_id` e `items` = [{"product_id": "<id>", "qty": n}].
+2. Buscá cada producto con `buscar_productos` y anotá su id y `stock`.
+3. Proponé `crear_venta` con `cliente_id` e `items` = [{"product_id": id_real, "qty": n}].
    - El costo de envío va en `envio` (pesos) y el detalle ("Envío por Andreani") en `notas`.
    - Para cobrar la seña de una sola vez usá `pago_porcentaje` (p. ej. 50) o `pago_monto`;
      `pago_tipo` es "adelanto" (seña) o "pago" (cobro total).
@@ -67,17 +118,37 @@ Flujo para reponer stock o cambiar un precio:
    `precio_venta` (nuevo precio minorista en pesos); el que no cambia va en 0.
    - Si el usuario pide reposiciones para varios productos, hacé una propuesta por vez.
 
-Ejemplo de llamada válida (con los ids reales que obtuviste):
-crear_venta(cliente_id="<id>", items=[{"product_id": "<id>", "qty": 7}], envio=0,
-            notas="Envío por Andreani", pago_porcentaje=50, pago_tipo="adelanto")
+En `crear_venta`, `cliente_id` va con el id que devolvió `listar_clientes` y cada elemento
+de `items` es {"product_id": id_del_producto, "qty": n}, usando los ids de `buscar_productos`.
 """
 
 MAX_STEPS = 8
+
+MAX_TEXT_RECOVERIES = 3
 
 PROPOSE_NUDGE = (
     "Dejá la acción registrada como propuesta llamando a la herramienta correspondiente "
     "con sus parámetros, para que el usuario la confirme en la pantalla; no hace falta "
     "que me preguntes primero."
+)
+
+QUERY_NO_PROPOSAL = (
+    "El usuario pidió una consulta, no una modificación: no propongas acciones ni pidas "
+    "confirmación. Usá las herramientas de lectura (por ejemplo `listar_clientes` y "
+    "`listar_ventas`) y respondé directamente con los datos."
+)
+
+NO_PROPOSAL_FEEDBACK = (
+    "No hay ninguna propuesta registrada: no hay nada que confirmar en la pantalla. "
+    "Si era una consulta, respondé directamente con las herramientas de lectura; si era "
+    "una acción de escritura, volvé a proponerla con `proponer_accion`."
+)
+
+_CONFIRM_IN_UI = re.compile(
+    r"\bconfir(ma|me|me[mn]|alo|ala|emos|ar)\b[^.!?]{0,40}"
+    r"\b(esta|la|el|lo|tu|pantalla|acci[oó]n|continuar|ejecutar|propuesta)"
+    r"|\b(requiere|necesita|pide|pendiente\s+de)\s+(tu\s+|de\s+)?confirmaci[oó]n",
+    re.I,
 )
 
 WRITE_TOOLS = {
@@ -294,6 +365,10 @@ async def run_agent(
     tool_map = {tool.name: tool for tool in tools}
     llm = get_llm(temperature=0).bind_tools(tools)
     nudged = False
+    is_query = guardrails.is_read_request(message)
+    reoriented = False
+    text_recoveries = 0
+    confirm_retried = False
 
     firmas = signatures_text(write_tools)
     system_prompt = f"{SYSTEM_PROMPT}\n\n{firmas}" if firmas else SYSTEM_PROMPT
@@ -316,6 +391,8 @@ async def run_agent(
             content = ai_message.content
             text = content if isinstance(content, str) else str(content)
             entry = _text_call_entry(text, write_tools)
+            if entry is not None and is_query:
+                entry = {**entry, "ok": False, "result": QUERY_NO_PROPOSAL}
             if entry is not None and entry.get("ok"):
                 feedback = await reference_feedback(
                     db, entry["arguments"]["herramienta"], entry["arguments"]["argumentos"]
@@ -325,6 +402,33 @@ async def run_agent(
             if entry is not None and entry.get("ok"):
                 tool_calls_log.append(entry)
                 return _proposal_reply(entry), tool_calls_log
+            if entry is not None and is_query and not reoriented:
+                tool_calls_log.append(entry)
+                reoriented = True
+                messages.append(HumanMessage(content=QUERY_NO_PROPOSAL))
+                continue
+            if entry is None and text_recoveries < MAX_TEXT_RECOVERIES:
+                text_call = _extract_text_call(text, set(tool_map))
+                if text_call is not None and text_call[0] not in WRITE_TOOLS:
+                    name, args = text_call
+                    text_recoveries += 1
+                    await _emit("tool_start", {"name": name, "arguments": args})
+                    result = await _invoke_tool(tool_map.get(name), args)
+                    ok = _result_ok(name, result)
+                    tool_calls_log.append(
+                        {"name": name, "arguments": args, "result": result, "ok": ok}
+                    )
+                    await _emit("tool_end", {"name": name, "ok": ok, "result": result})
+                    messages.append(
+                        ToolMessage(content=_stringify(result), tool_call_id=f"texto-{name}")
+                    )
+                    continue
+            if not _has_proposal(tool_calls_log) and _asks_confirmation(text):
+                if not confirm_retried:
+                    confirm_retried = True
+                    messages.append(HumanMessage(content=NO_PROPOSAL_FEEDBACK))
+                    continue
+                text = _without_confirmation(text)
             if (
                 not nudged
                 and not _has_proposal(tool_calls_log)
@@ -340,13 +444,21 @@ async def run_agent(
         for call in calls:
             if call["name"] in WRITE_TOOLS:
                 await _emit("tool_start", {"name": call["name"], "arguments": call["args"]})
-                entry = _write_proposal(write_tools, call)
-                if entry.get("ok"):
-                    feedback = await reference_feedback(
-                        db, entry["arguments"]["herramienta"], entry["arguments"]["argumentos"]
-                    )
-                    if feedback:
-                        entry = {**entry, "ok": False, "result": feedback}
+                if is_query:
+                    entry = {
+                        "name": call["name"],
+                        "arguments": call["args"],
+                        "result": QUERY_NO_PROPOSAL,
+                        "ok": False,
+                    }
+                else:
+                    entry = _write_proposal(write_tools, call)
+                    if entry.get("ok"):
+                        feedback = await reference_feedback(
+                            db, entry["arguments"]["herramienta"], entry["arguments"]["argumentos"]
+                        )
+                        if feedback:
+                            entry = {**entry, "ok": False, "result": feedback}
                 tool_calls_log.append(entry)
                 await _emit(
                     "tool_end",
@@ -356,7 +468,10 @@ async def run_agent(
                 continue
             tool = tool_map.get(call["name"])
             await _emit("tool_start", {"name": call["name"], "arguments": call["args"]})
-            result = await _invoke_tool(tool, call["args"])
+            if is_query and call["name"] == "proponer_accion":
+                result = QUERY_NO_PROPOSAL
+            else:
+                result = await _invoke_tool(tool, call["args"])
             ok = _result_ok(call["name"], result)
             tool_calls_log.append(
                 {
@@ -383,12 +498,24 @@ async def _invoke_tool(tool: BaseTool | None, arguments: dict) -> Any:
         return {"error": str(exc)}
 
 
+def _result_text(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    if isinstance(result, list):
+        return "\n".join(
+            block.get("text", "") if isinstance(block, dict) else str(block) for block in result
+        )
+    if isinstance(result, dict):
+        return str(result.get("text", ""))
+    return ""
+
+
 def _result_ok(name: str, result: Any) -> bool:
     if isinstance(result, dict):
         return not result.get("error")
     if name == "proponer_accion" and isinstance(result, str):
         return "propuesta registrada" in result.lower()
-    return True
+    return "validation errors for call[" not in _result_text(result)
 
 
 def _has_proposal(tool_calls_log: list[dict]) -> bool:
@@ -397,7 +524,22 @@ def _has_proposal(tool_calls_log: list[dict]) -> bool:
     )
 
 
+def _asks_confirmation(text: str) -> bool:
+    """True si el texto le pide al usuario confirmar algo sin propuesta registrada."""
+    return bool(_CONFIRM_IN_UI.search(text))
+
+
+def _without_confirmation(text: str) -> str:
+    """Quita del texto las oraciones que piden confirmación."""
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    kept = [s for s in sentences if not _asks_confirmation(s)]
+    result = " ".join(kept).strip()
+    return result or "No hay ninguna propuesta registrada en la pantalla."
+
+
 _CALL_START = re.compile(r"\b([a-z_][a-z0-9_]*)\s*\(")
+
+_JSON_HEAD = re.compile(r'\{\s*"(?:name|arguments)"')
 
 
 def _balanced_call(text: str, start: int) -> str | None:
@@ -413,8 +555,27 @@ def _balanced_call(text: str, start: int) -> str | None:
     return None
 
 
+def _extract_json_call(text: str, tool_names: set[str]) -> tuple[str, dict] | None:
+    """Detecta una herramienta escrita como JSON, p. ej. ```json {"name": ...}```."""
+    for match in _JSON_HEAD.finditer(text):
+        try:
+            payload, _ = json.JSONDecoder().raw_decode(text[match.start() :])
+        except ValueError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        name = payload.get("name")
+        arguments = payload.get("arguments")
+        if isinstance(name, str) and name in tool_names and isinstance(arguments, dict):
+            return name, arguments
+    return None
+
+
 def _extract_text_call(text: str, tool_names: set[str]) -> tuple[str, dict] | None:
-    """Detecta una herramienta escrita como texto, p. ej. `crear_venta(...)`."""
+    """Detecta una herramienta escrita como texto: `crear_venta(...)` o JSON con name/arguments."""
+    json_call = _extract_json_call(text, tool_names)
+    if json_call is not None:
+        return json_call
     for match in _CALL_START.finditer(text):
         name = match.group(1)
         if name not in tool_names:

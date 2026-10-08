@@ -112,7 +112,7 @@ async def compute_alerts(db) -> list[dict]:
                     )
                 )
 
-        if sale.balance > 0 and sale.status != "entregado":
+        if sale.balance > 0 and sale.status not in ("entregado", "cancelado"):
             if payment_due is not None and payment_due < now:
                 alerts.append(
                     _alert(

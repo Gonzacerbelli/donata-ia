@@ -107,12 +107,70 @@ def test_validate_answer_ok_on_clean():
         ("registra una seña del 50%", True),
         ("¿cuántos productos tengo con stock?", False),
         ("buscame los clientes", False),
+        (
+            "solo quiero saber cual es el pedido que reste cancelar con mayor cantidad de dinero",
+            False,
+        ),
+        ("cuánto hay que pagar en total?", False),
+        ("cual es el pedido pendiente que mas dinero resta por cancelar?", False),
+        ("de qué productos debo reponer stock?", False),
+        ("qué falta reponer?", False),
+        ("quiero cancelar la orden de marta", True),
     ],
 )
 def test_mentions_write_action(text: str, expected: bool):
     from app.services.llm.guardrails import mentions_write_action
 
     assert mentions_write_action(text) is expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("quiero saber las ordenes de camila duarte y cuanta plata debe", True),
+        ("cuánto stock hay de alfombras?", True),
+        ("buscá clientes con gmail", True),
+        ("mostrame las ventas del mes", True),
+        ("revisá el saldo de marta", True),
+        ("creá un cliente llamada Ana", False),
+        ("reponer stock de alfombra persa", False),
+        ("registrar un pago de 500 pesos", False),
+        ("hola, ¿qué hacés?", False),
+        ("dame 7 soportes", False),
+        ("quiero crear una orden y después ver cuánto debe", True),
+    ],
+)
+def test_mentions_read_action(text: str, expected: bool):
+    from app.services.llm.guardrails import mentions_read_action
+
+    assert mentions_read_action(text) is expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("quiero saber las ordenes de camila duarte y cuanta plata debe", True),
+        ("cuánto stock hay de alfombras?", True),
+        ("mostrame las ventas del mes", True),
+        ("quería hacer una orden para marta", False),
+        ("reponer stock de alfombra persa", False),
+        ("quiero crear una orden y después ver cuánto debe", False),
+        (
+            "solo quiero saber cual es el pedido que reste cancelar con mayor cantidad de dinero",
+            True,
+        ),
+        ("cuánto hay que pagar en total?", True),
+        ("cual es el pedido pendiente que mas dinero resta por cancelar?", True),
+        ("¿quién debe más?", True),
+        ("de qué productos debo reponer stock?", True),
+        ("qué falta reponer?", True),
+        ("quiero cancelar la orden de marta", False),
+    ],
+)
+def test_is_read_request(text: str, expected: bool):
+    from app.services.llm.guardrails import is_read_request
+
+    assert is_read_request(text) is expected
 
 
 def test_sanitize_answer_quita_ids_y_decimales():
@@ -129,3 +187,23 @@ def test_sanitize_answer_respeta_miles_con_punto():
     from app.services.llm.guardrails import sanitize_answer
 
     assert sanitize_answer("El precio es 35.000 pesos") == "El precio es 35.000 pesos"
+
+
+def test_sanitize_answer_quita_bloques_de_tool_call():
+    from app.services.llm.guardrails import sanitize_answer
+
+    raw = (
+        "Listo, ya te paso el detalle.\n"
+        '```json\n{"name": "reponer_stock", "arguments": {"producto_id": "abc"}}\n```'
+    )
+    assert sanitize_answer(raw).strip() == "Listo, ya te paso el detalle."
+
+    raw_es = 'Te respondo.\n```\n{"herramienta": "crear_venta", "argumentos": {}}\n```'
+    assert sanitize_answer(raw_es).strip() == "Te respondo."
+
+
+def test_sanitize_answer_conserva_json_que_no_es_tool_call():
+    from app.services.llm.guardrails import sanitize_answer
+
+    raw = 'Mirá el resumen:\n```json\n{"total": 5000}\n```'
+    assert '"total"' in sanitize_answer(raw)

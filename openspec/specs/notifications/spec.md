@@ -54,7 +54,7 @@ Una orden no cancelada con `ship_by` vencido que no está entregada SHALL genera
 
 ### Requirement: Las órdenes con saldo generan alertas de cobro
 
-Una orden con saldo mayor a cero que no está entregada SHALL generar `PAGO_PENDIENTE` (media) y, si la fecha de vencimiento del cobro ya pasó, `PAGO_VENCIDO` (alta) en su lugar.
+Una orden con saldo mayor a cero que no está entregada ni cancelada SHALL generar `PAGO_PENDIENTE` (media) y, si la fecha de vencimiento del cobro ya pasó, `PAGO_VENCIDO` (alta) en su lugar. Las órdenes canceladas no generan alertas de cobro: una orden cancelada no debe dinero.
 
 #### Scenario: Saldo pendiente
 
@@ -64,9 +64,15 @@ Una orden con saldo mayor a cero que no está entregada SHALL generar `PAGO_PEND
 
 #### Scenario: Cobro vencido
 
-- **GIVEN** una orden cuyo saldo superó la fecha de vencimiento del cobro
+- **GIVEN** una orden cuyo saldo superó su fecha de vencimiento del cobro
 - **WHEN** se consulta `GET /notifications`
 - **THEN** aparece `PAGO_VENCIDO` con severidad alta
+
+#### Scenario: Orden cancelada
+
+- **GIVEN** una orden cancelada con saldo sin pagar
+- **WHEN** se consulta `GET /notifications`
+- **THEN** no aparece `PAGO_PENDIENTE` ni `PAGO_VENCIDO` para esa orden
 
 #### Scenario: Orden saldada
 
