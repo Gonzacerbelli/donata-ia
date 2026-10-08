@@ -82,7 +82,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 def _resolve_limit(method: str, path: str) -> tuple[str, int]:
     if path == "/auth/login" or path.startswith("/auth/google"):
         return "login", settings.rate_limit_login
-    if path == "/chat":
+    if path == "/chat" or path == "/chat/stream":
         return "chat", settings.rate_limit_chat
     if "export" in path:
         return "export", settings.rate_limit_export

@@ -1,42 +1,78 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { chatApi } from "@/features/chat/api";
-import { useChatMessages } from "@/features/chat/hooks";
+import { chatKeys, useChatMessages } from "@/features/chat/hooks";
+import { SIZE_KEY, clampSize, parseSize, type WidgetSize } from "@/features/chat/size";
+import { newThreadId, resolveThreadId, saveThreadId } from "@/features/chat/thread";
 import { ApiError } from "@/lib/http";
-import type { ChatMessage, PendingAction } from "@/types/domain";
-
-const THREAD_KEY = "donata.chat.thread";
-
-function newThreadId(): string {
-  return `web-${crypto.randomUUID()}`;
-}
-
-function loadThreadId(): string {
-  const existing = localStorage.getItem(THREAD_KEY);
-  if (existing) return existing;
-  const created = newThreadId();
-  localStorage.setItem(THREAD_KEY, created);
-  return created;
-}
+import type { ChatMessage, ChatResponse, PendingAction } from "@/types/domain";
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [threadId, setThreadId] = useState(loadThreadId);
+  const [threadId, setThreadId] = useState("");
+  const [ready, setReady] = useState(false);
+  const threadRef = useRef("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
+  const [size, setSize] = useState<WidgetSize>(() =>
+    parseSize(localStorage.getItem(SIZE_KEY), {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }),
+  );
+  const resizeRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const history = useChatMessages(threadId);
 
+  const adoptThread = useCallback((id: string) => {
+    threadRef.current = id;
+    saveThreadId(id);
+    setThreadId(id);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveThreadId().then((id) => {
+      if (cancelled) return;
+      if (!threadRef.current) adoptThread(id);
+      setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [adoptThread]);
+
+  useEffect(() => {
+    localStorage.setItem(SIZE_KEY, JSON.stringify(size));
+  }, [size]);
+
   useEffect(() => {
     if (history.data) setMessages(history.data);
   }, [history.data]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [threadId, open]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -48,7 +84,7 @@ export function ChatWidget() {
     return () => clearInterval(timer);
   }, [retryAfter]);
 
-  const canSend = input.trim().length > 0 && !pending && retryAfter === 0;
+  const canSend = ready && input.trim().length > 0 && !pending && retryAfter === 0;
 
   function appendAssistant(response: {
     thread_id: string;
@@ -123,30 +159,72 @@ export function ChatWidget() {
       created_at: new Date().toISOString(),
     };
     setMessages((current) => [...current, optimistic]);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let final: ChatResponse | null = null;
     try {
-      const response = await chatApi.send(threadId, text);
-      setPendingAction(response.pending_action);
-      appendAssistant(response);
+      for await (const event of chatApi.stream(threadId, text, controller.signal)) {
+        if (event.event === "done") {
+          final = event.data;
+        } else if (event.event === "error") {
+          setError(event.data.detail);
+        }
+      }
     } catch (err) {
-      handleFailure(err);
+      if (!controller.signal.aborted) handleFailure(err);
     } finally {
+      abortRef.current = null;
       setPending(false);
+    }
+    if (final) {
+      setPendingAction(final.pending_action);
+      appendAssistant(final);
+      void queryClient.invalidateQueries({ queryKey: chatKeys.messages(threadId) });
     }
   }
 
   function handleNewConversation() {
-    const created = newThreadId();
-    localStorage.setItem(THREAD_KEY, created);
-    setThreadId(created);
+    adoptThread(newThreadId());
     setMessages([]);
     setPendingAction(null);
     setError(null);
   }
 
+  function handleResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      width: size.width,
+      height: size.height,
+    };
+  }
+
+  function handleResizeMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = resizeRef.current;
+    if (!start) return;
+    setSize(
+      clampSize(
+        {
+          width: start.width + event.clientX - start.x,
+          height: start.height + event.clientY - start.y,
+        },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    );
+  }
+
+  function handleResizeEnd() {
+    resizeRef.current = null;
+  }
+
   return (
     <div className="fixed bottom-4 right-4 z-40">
       {open && (
-        <div className="mb-3 flex h-[32rem] w-80 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div
+          style={{ width: size.width, height: size.height }}
+          className="relative mb-3 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+        >
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-slate-800">Asistente Donata</p>
@@ -163,7 +241,7 @@ export function ChatWidget() {
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            {history.isLoading ? (
+            {!ready || history.isLoading ? (
               <div className="flex justify-center py-10">
                 <Spinner />
               </div>
@@ -204,7 +282,7 @@ export function ChatWidget() {
             {pending && (
               <div className="flex items-center gap-2 text-sm text-slate-400">
                 <Spinner />
-                Pensando…
+                Cargando…
               </div>
             )}
           </div>
@@ -240,7 +318,7 @@ export function ChatWidget() {
             </div>
           )}
 
-          <div className="flex items-end gap-2 border-t border-slate-100 p-3">
+          <div className="flex items-end gap-2 border-t border-slate-100 px-4 py-4">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -258,6 +336,17 @@ export function ChatWidget() {
               Enviar
             </Button>
           </div>
+
+          <div
+            role="separator"
+            aria-label="Redimensionar asistente"
+            title="Arrastrá para redimensionar"
+            onPointerDown={handleResizeStart}
+            onPointerMove={handleResizeMove}
+            onPointerUp={handleResizeEnd}
+            onLostPointerCapture={handleResizeEnd}
+            className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize touch-none rounded-br-2xl bg-slate-100 [background-image:linear-gradient(135deg,transparent_45%,#94a3b8_45%,#94a3b8_55%,transparent_55%)] hover:bg-brand-50"
+          />
         </div>
       )}
 

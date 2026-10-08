@@ -167,3 +167,31 @@ export interface ChatResponse {
   response: string;
   pending_action: PendingAction | null;
 }
+
+export interface ChatStreamToken {
+  delta: string;
+}
+
+export interface ChatStreamToolStart {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface ChatStreamToolEnd {
+  name: string;
+  ok: boolean;
+  result: unknown;
+}
+
+export interface ChatStreamError {
+  detail: string;
+}
+
+export type ChatStreamEvent =
+  | { event: "start"; data: { thread_id: string } }
+  | { event: "token"; data: ChatStreamToken }
+  | { event: "tool_start"; data: ChatStreamToolStart }
+  | { event: "tool_end"; data: ChatStreamToolEnd }
+  | { event: "pending_action"; data: PendingAction }
+  | { event: "done"; data: ChatResponse }
+  | { event: "error"; data: ChatStreamError };

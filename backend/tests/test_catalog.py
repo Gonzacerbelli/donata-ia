@@ -63,6 +63,24 @@ async def test_product_crud(auth_client):
     assert deleted.status_code == 204
 
 
+async def test_product_search_tolerates_extra_words_and_missing_accents(auth_client):
+    provider = await _create_provider(auth_client)
+    await _create_product(
+        auth_client, provider["id"], name="Cortina de macramé", description="Cortina artesanal"
+    )
+    await _create_product(auth_client, provider["id"], name="Alfombra persa")
+
+    found = await auth_client.get(
+        "/products", params={"search": "cortina de macramé, de maderas del litoral"}
+    )
+    names = [p["name"] for p in found.json()]
+    assert names[0] == "Cortina de macramé"
+    assert "Alfombra persa" not in names
+
+    without_accents = await auth_client.get("/products", params={"search": "macrame"})
+    assert [p["name"] for p in without_accents.json()] == ["Cortina de macramé"]
+
+
 async def test_product_requires_existing_provider(auth_client):
     bad = await _create_product(auth_client, "507f1f77bcf86cd799439011")
     assert bad.status_code == 422

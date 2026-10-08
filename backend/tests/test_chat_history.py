@@ -55,3 +55,9 @@ async def test_chat_threads_are_scoped_to_user(auth_client, client, db):
 
 async def test_chat_routes_require_auth(client):
     assert (await client.get("/chat/threads")).status_code == 401
+    assert (
+        await client.post("/chat/stream", json={"thread_id": "hilo-x", "message": "hola"})
+    ).status_code == 401
+    assert (
+        await client.post("/chat", json={"thread_id": "hilo-x", "message": "hola"})
+    ).status_code == 401

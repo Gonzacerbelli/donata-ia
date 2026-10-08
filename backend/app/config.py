@@ -40,11 +40,12 @@ class Settings(BaseSettings):
     rate_limit_global: int = 120
 
     ollama_base_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "qwen2.5:7b-instruct"
+    ollama_model: str = "qwen2.5:14b-instruct"
     ollama_temperature: float = 0.1
     ollama_top_p: float = 0.95
     ollama_max_tokens: int = 2048
-    ollama_timeout: float = 60.0
+    ollama_timeout: float = 120.0
+    ollama_num_ctx: int = 8192
 
     chroma_dir: str = "data/chroma"
     embedding_provider: str = "huggingface"

@@ -1,23 +1,59 @@
 """Chequeo end-to-end del asistente con Ollama real.
 
+Corre contra la base de test (`MONGO_DB_TEST`, por defecto `donata_ia_test`) y la
+resetea al empezar, para no contaminar la base de demo.
+
 Uso:
     docker compose run --rm --no-deps api python -m scripts.e2e_check
 """
 
 import asyncio
+import time
 
 from bson import ObjectId
 
+from app.config import settings
 from app.db import close_db, connect_db, get_db
 from app.repositories import clients as clients_repo
 from app.repositories import products as products_repo
-from app.services.llm import agent, rag
+from app.repositories import sales as sales_repo
+from app.schemas.entities import SaleCreate
+from app.services import chat_history
+from app.services import sales as sales_service
+from app.services.llm import agent, assistant, guardrails, rag
+
+ORDEN_DE_EJEMPLO = (
+    "quiero crear una orden para marta de avenida libertador 312, cordoba. "
+    "compro 7 soporte para plantas trípode, pago la mitad con seña y se envia por andreani. "
+    "el numero de telefono es 1165245400"
+)
+
+RESET_COLLECTIONS = [
+    "providers",
+    "products",
+    "clients",
+    "sales",
+    "stock_moves",
+    "notification_states",
+    "chat_messages",
+    "chat_threads",
+]
+
+
+async def _reset(db) -> None:
+    for name in RESET_COLLECTIONS:
+        await db[name].delete_many({})
 
 
 async def _seed(db) -> None:
-    provider = await products_repo.create_provider(db, {"name": "Proveedor E2E", "active": True})
-    await products_repo.create_product(
-        db,
+    providers = await products_repo.list_providers(db, active_only=True)
+    provider = next((p for p in providers if p.name == "Proveedor E2E"), None)
+    if provider is None:
+        provider = await products_repo.create_provider(
+            db, {"name": "Proveedor E2E", "active": True}
+        )
+
+    productos = [
         {
             "name": "Alfombra persa roja",
             "category": "alfombras",
@@ -27,16 +63,45 @@ async def _seed(db) -> None:
             "cost": 20000,
             "stock": 7,
             "min_stock": 2,
-            "provider_id": ObjectId(str(provider.id)),
-            "active": True,
         },
-    )
-    await clients_repo.create_client(db, {"name": "Cliente E2E", "type": "mayorista"})
+        {
+            "name": "Soporte para plantas trípode",
+            "category": "accesorios",
+            "price": 2500,
+            "cost": 1200,
+            "stock": 12,
+            "min_stock": 2,
+        },
+    ]
+    existentes = await products_repo.list_products(db, active_only=True)
+    for producto in productos:
+        if any(p.name == producto["name"] for p in existentes):
+            continue
+        await products_repo.create_product(
+            db,
+            {
+                **producto,
+                "unit": "unidad",
+                "provider_id": ObjectId(str(provider.id)),
+                "active": True,
+            },
+        )
+
+    clientes = await clients_repo.list_clients(db)
+    if not any(c.name == "Cliente E2E" for c in clientes):
+        await clients_repo.create_client(db, {"name": "Cliente E2E", "type": "mayorista"})
+
+
+async def _assert_refs_exist(db, args: dict) -> None:
+    problems = await agent.check_references(db, "", args)
+    assert not problems, f"la propuesta usa ids inventados: {problems}"
 
 
 async def main() -> None:
+    settings.mongo_db = settings.mongo_db_test
     await connect_db()
     db = await get_db()
+    await _reset(db)
     await _seed(db)
 
     print("\n=== 1) Consulta de datos (debe usar herramientas MCP) ===")
@@ -48,6 +113,129 @@ async def main() -> None:
 
     print("\n=== 2) Consulta de documentación (RAG) ===")
     print(await rag.answer_question_async("¿Cómo se calculan los precios mayoristas?"))
+
+    print("\n=== 3) Propuesta de escritura con Ollama real ===")
+    assert not guardrails.is_off_topic(ORDEN_DE_EJEMPLO), "el pedido quedó fuera de tema"
+    thread_id = f"hilo-e2e-{int(time.time() * 1000)}"
+    result = await assistant.handle_message(db, "e2e-check", thread_id, ORDEN_DE_EJEMPLO)
+    print("Respuesta:", result["response"])
+    print("Tool calls:", [c["name"] for c in result["tool_calls"]])
+    pending = result["pending_action"]
+    assert pending is not None, "el asistente no propuso ninguna acción"
+    print("Acción propuesta:", pending["tool"], "-", pending["summary"])
+    print("Argumentos:", pending["args"])
+
+    tools = await agent.load_tools()
+    tool = next(t for t in tools if t.name == pending["tool"])
+    problems = agent.validate_args(pending["tool"], agent.tool_schema(tool), pending["args"])
+    assert not problems, f"argumentos inválidos: {problems}"
+    if pending["tool"] == "crear_cliente":
+        assert pending["args"]["nombre"].lower().startswith("marta"), pending["args"]
+        assert pending["args"].get("direccion"), "falta la dirección de entrega"
+        assert pending["args"].get("telefono"), "falta el teléfono"
+    elif pending["tool"] == "crear_venta":
+        assert pending["args"]["items"][0]["qty"] == 7, pending["args"]
+        assert pending["args"].get("pago_porcentaje") == 50, pending["args"]
+        assert pending["args"].get("notas"), "falta el detalle de envío en notas"
+        await _assert_refs_exist(db, pending["args"])
+    else:
+        raise AssertionError(f"acción inesperada: {pending['tool']}")
+    print("Argumentos válidos contra la firma real de la herramienta ✓")
+
+    print("\n=== 4) Reposición de stock con precio ===")
+    reposicion = (
+        "quiero reponer stock de alfombra persa roja, 10 unidades, con precio de venta de 35000"
+    )
+    assert not guardrails.is_off_topic(reposicion), "la reposición quedó fuera de tema"
+    assert guardrails.mentions_write_action(reposicion), "no detectó la acción de escritura"
+    thread_2 = f"hilo-e2e-reposicion-{int(time.time() * 1000)}"
+    result = await assistant.handle_message(db, "e2e-check", thread_2, reposicion)
+    print("Respuesta:", result["response"])
+    print("Tool calls:", [c["name"] for c in result["tool_calls"]])
+    pending = result["pending_action"]
+    assert pending is not None, "el asistente no propuso la reposición"
+    assert pending["tool"] == "reponer_stock", pending["tool"]
+    assert pending["args"]["cantidad"] == 10, pending["args"]
+    assert pending["args"]["precio_venta"] == 35000, pending["args"]
+    await _assert_refs_exist(db, pending["args"])
+    product = await products_repo.get_product(db, pending["args"]["producto_id"])
+    assert product is not None and product.name == "Alfombra persa roja", pending["args"]
+    print("Acción propuesta:", pending["tool"], "-", pending["summary"])
+    print("Argumentos:", pending["args"])
+
+    print("\n=== 5) Streaming SSE con Ollama real ===")
+    assert not guardrails.is_off_topic(ORDEN_DE_EJEMPLO), "el pedido quedó fuera de tema"
+    thread_3 = f"hilo-e2e-stream-{int(time.time() * 1000)}"
+    await chat_history.create_thread(db, "e2e-check", thread_3)
+    events = []
+    async for event, payload in assistant.stream_message(
+        db, "e2e-check", thread_3, ORDEN_DE_EJEMPLO
+    ):
+        events.append((event, payload))
+        if event == "token":
+            print(payload["delta"], end="", flush=True)
+    print()
+
+    names = [name for name, _ in events]
+    assert names[0] == "start", f"el primer evento debe ser start: {names}"
+    assert names[-1] == "done", f"el último evento debe ser done: {names}"
+    tokens = [p["delta"] for n, p in events if n == "token"]
+    assert tokens, "no se recibió ningún token incremental"
+    text = "".join(tokens)
+    assert text.strip(), "el texto acumulado del stream quedó vacío"
+    final = events[-1][1]
+    assert final["response"].strip(), "done sin respuesta"
+    assert final["pending_action"] is not None, "done sin pending_action"
+    assert final["pending_action"]["tool"] in {"crear_cliente", "crear_venta"}
+    pendings = [n for n, _ in events if n == "pending_action"]
+    assert pendings == ["pending_action"], f"pending_action duplicado: {names}"
+    assert names.index("pending_action") == len(names) - 2, (
+        "pending_action debe ir justo antes de done"
+    )
+    print(f"Eventos: {names}")
+    print(f"Tokens incrementales: {len(tokens)}")
+    print(f"Acción propuesta: {final['pending_action']['tool']}")
+    print("Streaming verificado contra Ollama real ✓")
+
+    print("\n=== 6) Consulta de órdenes: no propone acciones ni pide confirmación ===")
+    clientes = await clients_repo.list_clients(db)
+    cliente_e2e = next((c for c in clientes if c.name == "Cliente E2E"), None)
+    assert cliente_e2e is not None, "falta el cliente de prueba"
+    ventas = await sales_repo.list_sales(db, client_id=str(cliente_e2e.id))
+    if not ventas:
+        productos = await products_repo.list_products(db, active_only=True)
+        con_stock = max((p for p in productos if p.stock > 0), key=lambda p: p.stock)
+        await sales_service.create_sale(
+            db,
+            SaleCreate(
+                client_id=str(cliente_e2e.id),
+                items=[{"product_id": str(con_stock.id), "qty": min(2, con_stock.stock)}],
+            ),
+        )
+    consulta = "quiero saber las ordenes de Cliente E2E y cuanta plata debe"
+    assert guardrails.is_read_request(consulta), "la consulta no se detectó como de lectura"
+    ventas = await sales_repo.list_sales(db, client_id=str(cliente_e2e.id))
+    deuda_esperada = sum(
+        s.total - sum(p.amount for p in s.payments) for s in ventas if s.status != "cancelado"
+    )  # misma regla que el UI: las canceladas no se cuentan
+    thread_4 = f"hilo-e2e-consulta-{int(time.time() * 1000)}"
+    result = await assistant.handle_message(db, "e2e-check", thread_4, consulta)
+    print("Respuesta:", result["response"])
+    print("Tool calls:", [c["name"] for c in result["tool_calls"]])
+    assert result["pending_action"] is None, "una consulta no debe proponer acciones"
+    assert "Propuesta registrada" not in result["response"], "la consulta respondió como propuesta"
+    assert "Confirmala" not in result["response"], "la consulta pidió confirmación"
+    usadas = {c["name"] for c in result["tool_calls"]}
+    assert not usadas & agent.WRITE_TOOLS, f"la consulta usó herramientas de escritura: {usadas}"
+    assert "proponer_accion" not in usadas, "la consulta llamó a proponer_accion"
+    assert "consultar_saldo_cliente" in usadas, usadas
+    assert "e2e" in result["response"].lower(), "no respondió sobre el cliente pedido"
+    reportado = result["response"].replace(".", "").replace(",", "").replace(" ", "")
+    assert str(deuda_esperada) in reportado, (
+        f"debe reportar {deuda_esperada} (misma regla que el UI), respondió: {result['response']}"
+    )
+    print(f"Deuda reportada coincide con el cálculo del UI ({deuda_esperada}) ✓")
+    print("Consulta resuelta sin propuesta ni confirmación ✓")
 
     await close_db()
 

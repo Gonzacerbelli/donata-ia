@@ -66,6 +66,74 @@ async def delete_provider(db: AsyncIOMotorDatabase, provider_id: str) -> bool:
     return await delete_doc(coll(db, "providers"), oid)
 
 
+_SEARCH_STOPWORDS = {
+    "de",
+    "del",
+    "la",
+    "el",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "y",
+    "o",
+    "u",
+    "en",
+    "con",
+    "por",
+    "para",
+    "que",
+    "quiero",
+    "queremos",
+    "dame",
+    "busca",
+    "buscar",
+    "buscame",
+    "listar",
+    "listame",
+    "mostrar",
+    "muestra",
+    "producto",
+    "productos",
+    "articulo",
+    "articulos",
+    "stock",
+    "precio",
+    "precios",
+}
+
+_ACCENT_PATTERN = {
+    "a": "[aá]",
+    "e": "[eé]",
+    "i": "[ií]",
+    "o": "[oó]",
+    "u": "[uúü]",
+    "n": "[nñ]",
+}
+
+_TRANSLIT = str.maketrans("áéíóúüñ", "aeiouun")
+
+
+def _accent_pattern(word: str) -> str:
+    return "".join(_ACCENT_PATTERN.get(char.lower(), re.escape(char)) for char in word)
+
+
+def _search_words(search: str) -> list[str]:
+    parts = re.split(r"[^0-9a-zA-Záéíóúüñ]+", search)
+    return [
+        word
+        for word in parts
+        if len(word) > 1 and word.lower().translate(_TRANSLIT) not in _SEARCH_STOPWORDS
+    ]
+
+
+def _match_score(product: Product, words: list[str]) -> int:
+    text = f"{product.name} {product.description or ''}".lower().translate(_TRANSLIT)
+    return sum(1 for word in words if word.lower().translate(_TRANSLIT) in text)
+
+
 async def list_products(
     db: AsyncIOMotorDatabase,
     *,
@@ -77,12 +145,19 @@ async def list_products(
     query: dict = {}
     if active_only:
         query["active"] = True
+    words: list[str] = []
     if search:
         pattern = re.escape(search)
-        query["$or"] = [
+        clauses: list[dict] = [
             {"name": {"$regex": pattern, "$options": "i"}},
             {"description": {"$regex": pattern, "$options": "i"}},
         ]
+        words = _search_words(search)
+        for word in words:
+            word_pattern = _accent_pattern(word)
+            clauses.append({"name": {"$regex": word_pattern, "$options": "i"}})
+            clauses.append({"description": {"$regex": word_pattern, "$options": "i"}})
+        query["$or"] = clauses
     if category:
         query["category"] = {"$regex": re.escape(category), "$options": "i"}
     if provider_id:
@@ -91,7 +166,10 @@ async def list_products(
             return []
         query["provider_id"] = oid
     docs = await list_docs(coll(db, "products"), query, sort=[("name", 1)])
-    return [p for p in (doc_to_model(Product, d) for d in docs) if p is not None]
+    products = [p for p in (doc_to_model(Product, d) for d in docs) if p is not None]
+    if search and len(words) > 1:
+        products.sort(key=lambda p: (-_match_score(p, words), p.name))
+    return products
 
 
 async def get_product(db: AsyncIOMotorDatabase, product_id: str) -> Product | None:

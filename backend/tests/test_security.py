@@ -58,8 +58,37 @@ async def test_health_is_exempt_from_rate_limit(client):
         responses = [await client.get("/health") for _ in range(3)]
     finally:
         settings.rate_limit_enabled = False
+        settings.rate_limit_global = 120
         settings.ollama_base_url = original
     assert [r.status_code for r in responses] == [200, 200, 200]
+
+
+async def test_chat_stream_shares_chat_window_and_keeps_write_window(client):
+    settings.rate_limit_enabled = True
+    settings.rate_limit_chat = 1
+    settings.rate_limit_write = 4
+    reset_rate_limits()
+    payload = {"thread_id": "hilo-rl", "message": "hola"}
+    try:
+        stream = [
+            await client.post("/chat/stream", json=payload),
+            await client.post("/chat/stream", json=payload),
+        ]
+        confirm = await client.post("/chat/confirm", json={"thread_id": "hilo-rl", "token": "x"})
+        threads = [
+            await client.post("/chat/threads", json={"thread_id": "hilo-rl"}),
+            await client.post("/chat/threads", json={"thread_id": "hilo-rl"}),
+            await client.post("/chat/threads", json={"thread_id": "hilo-rl-2"}),
+            await client.post("/chat/threads", json={"thread_id": "hilo-rl-3"}),
+        ]
+    finally:
+        settings.rate_limit_enabled = False
+        settings.rate_limit_chat = 20
+        settings.rate_limit_write = 60
+    assert [r.status_code for r in stream] == [401, 429]
+    assert stream[1].headers["Retry-After"].isdigit()
+    assert confirm.status_code == 401
+    assert [r.status_code for r in threads] == [401, 401, 401, 429]
 
 
 async def test_oversized_body_is_rejected(client):

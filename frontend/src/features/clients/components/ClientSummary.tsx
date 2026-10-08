@@ -20,8 +20,9 @@ export function ClientSummary({ client }: { client: Client }) {
   }
 
   const sales = data ?? [];
-  const billed = sales.reduce((sum, sale) => sum + sale.total, 0);
-  const balance = sales.reduce((sum, sale) => sum + sale.balance, 0);
+  const activas = sales.filter((sale) => sale.status !== "cancelado");
+  const billed = activas.reduce((sum, sale) => sum + sale.total, 0);
+  const balance = activas.reduce((sum, sale) => sum + sale.balance, 0);
 
   const stats = [
     { label: "Órdenes", value: String(sales.length) },
@@ -48,8 +49,20 @@ export function ClientSummary({ client }: { client: Client }) {
             <li key={sale.id} className="flex items-center justify-between py-2 text-sm">
               <span className="text-slate-600">{formatDate(sale.date)}</span>
               <span className="text-slate-800">{formatCurrency(sale.total)}</span>
-              <span className={sale.balance > 0 ? "text-amber-600" : "text-emerald-600"}>
-                {sale.balance > 0 ? `Debe ${formatCurrency(sale.balance)}` : "Pagada"}
+              <span
+                className={
+                  sale.status === "cancelado"
+                    ? "text-slate-400"
+                    : sale.balance > 0
+                      ? "text-amber-600"
+                      : "text-emerald-600"
+                }
+              >
+                {sale.status === "cancelado"
+                  ? "Cancelada"
+                  : sale.balance > 0
+                    ? `Debe ${formatCurrency(sale.balance)}`
+                    : "Pagada"}
               </span>
             </li>
           ))}

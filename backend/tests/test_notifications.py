@@ -104,6 +104,18 @@ async def test_payment_alert_clears_when_paid(auth_client):
     assert f"PAGO_PENDIENTE:{sale['id']}" not in ids
 
 
+async def test_payment_alert_absent_when_cancelled(auth_client):
+    product = await _provider_and_product(auth_client)
+    client = await _client(auth_client)
+    sale = await _sale(auth_client, client["id"], product["id"])
+    await auth_client.patch(f"/sales/{sale['id']}", json={"status": "cancelado"})
+
+    body = (await auth_client.get("/notifications")).json()
+    ids = {i["id"] for i in body["items"]}
+    assert f"PAGO_PENDIENTE:{sale['id']}" not in ids
+    assert f"PAGO_VENCIDO:{sale['id']}" not in ids
+
+
 async def test_orden_sin_items_rule(db):
     sale = await sales_repo.create_sale(
         db,
