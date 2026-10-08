@@ -57,11 +57,15 @@ El usuario entrega `docs/CASOS_DE_USO.pdf` y espera el feedback.
 
 **Mientras tanto, tareas que no dependen del feedback** (se pueden adelantar):
 
-- [ ] Levantar el esqueleto de Docker + `docker-compose.yml`.
+- [x] Levantar el esqueleto de Docker + `docker-compose.yml`.
 - [ ] Configurar la conexión a MongoDB Atlas y verificar la conectividad.
 - [ ] Descargar/verificar el modelo de Ollama y medir su velocidad de respuesta en CPU.
-- [ ] Registrar la app en Google Cloud Console y obtener las credenciales OAuth 2.0.
-- [ ] Portar los tests de `donata-deco/backend/tests` como base de la suite nueva.
+- [x] Registrar la app en Google Cloud Console y obtener las credenciales OAuth 2.0.
+- [x] Portar los tests de `donata-deco/backend/tests` como base de la suite nueva.
+
+> **Nota:** Mongo corre local en Docker (`mongodb://mongo:27017`); Atlas queda como alternativa
+> documentada en el README, no configurada. El modelo está descargado y verificado (E2E con
+> Ollama real) pero **no se registró una medición formal de latencia en CPU**.
 
 **Si el docente pide cambios**, se actualizan `docs/CASOS_DE_USO.md`, se regenera el PDF con
 `python scripts/md2pdf.py docs/CASOS_DE_USO.md docs/CASOS_DE_USO.pdf` y se continúa.

@@ -148,6 +148,46 @@ peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
 <!-- Agregar las entradas acá, de la más reciente a la más antigua. -->
 
+### [20261008] Adopción de OpenSpec y streaming SSE del chat — completado
+
+**Objetivo.** Dos cosas pendientes del plan: instalar un flujo Spec-Driven verificable en lugar
+del flujo propio declarado pero nunca ejercitado, y cerrar el desvío 7.3 del chat (SSE).
+
+**Contexto para el agente.** `AGENTS.md` §7–§8 (flujo spec-driven), el flujo depreciable
+(`.opencode/skills/sdd-openspec`, comandos `/sdd-*`, `specs/` vacía) y el desvío 7.3 de
+`docs/PLAN-IMPLEMENTACION.md`. Para el streaming, el contrato quedó en
+`openspec/changes/chat-sse-streaming/design.md` antes de tocar código.
+
+**Prompts clave.**
+1. *"Instalá OpenSpec, documentá los 10 CU como specs as-built validados y deprecá el flujo
+   propio; no toques `docs/CASOS_DE_USO.md`."*
+2. *"Implementá `chat-sse-streaming` desde el change aprobado: eventos `start/token/tool_start/
+   tool_end/pending_action/done/error`, `POST /chat` intacto como fallback y rate limit en la
+   ventana `chat`."*
+3. *"Validá todo contra el plan y reportá las divergencias."*
+
+**Iteraciones y hallazgos.**
+- El flujo propio tenía comandos declarados inexistentes (`/sdd-tasks`) y specs vacías desde el
+  commit inicial: OpenSpec lo reemplazó con `validate`/`archive` y un backfill as-built de 10
+  specs (103 requirements) validado en estricto.
+- **Cancelación y persistencia:** con streaming, recargar o cerrar el panel corta el turno; la
+  decisión de diseño es que un turno interrumpido **no se persiste** (nada de estados a medias,
+  ADR `0006`). El E2E de historial falló exactamente ahí: el `200` de `POST /chat/stream` llega
+  al abrir el stream, no al cerrarlo → el test ahora espera el cuerpo completo antes de recargar.
+- El `done` trae la respuesta ya saneada por los guardrails, que puede diferir del texto
+  token a token: el cliente reemplaza el parcial acumulado con el de `done` (spec lo explicita).
+- Dos ADRs habían quedado con el mismo número (0004); se renumeró el de OpenSpec a `0005`.
+
+**Resultado.** Rama `feat/openspec-adoption` con 2 commits (adopción + implementación).
+Verificación: ruff + pytest `pytest_exit=0`; `tsc`/`eslint`/Vitest 38/38/`vite build`;
+`e2e_check` con Ollama real ×2 (`e2e_exit=0`, 240 y 133 tokens incrementales); Playwright 9/9;
+`openspec validate --strict --specs` 10/10; change archivado como
+`2026-10-08-chat-sse-streaming` con +8 requirements en `ai-chat-assistant`.
+
+**Lección.** Un desvío documentado (`PLAN` §7.3) se cierra mucho más limpio cuando primero se
+convierte en un change con spec-delta: el contrato de eventos y el modo de cancelación quedan
+decididos antes de escribir la primera línea de código, y el spec resultante es la evidencia.
+
 ### [20261009] F8: seed, E2E, hardening y auditoría final — completado
 
 **Objetivo.** Cerrar el ciclo: datos de demostración, pruebas end-to-end de la UI, checklist de

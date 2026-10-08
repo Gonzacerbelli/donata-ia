@@ -57,7 +57,7 @@ cuestionan, se les escribe un ADR acá.
 | 5 | Montos en enteros ARS | `AGENTS.md` §3.6 |
 | 6 | Saldo siempre derivado | `AGENTS.md` §3.7 |
 | 7 | Stock atómico con auditoría | `AGENTS.md` §3.9 |
-| 8 | Spec-Driven Development | `AGENTS.md` §7 · ADR `0004` |
+| 8 | Spec-Driven Development | `AGENTS.md` §7 · ADR `0005` |
 
 ## ADRs escritos
 
@@ -66,13 +66,14 @@ cuestionan, se les escribe un ADR acá.
 | 0001 | Las tools del agente se exponen en un servidor MCP propio | `0001-tools-del-agente-por-mcp.md` |
 | 0002 | Atomicidad de stock por `update` condicional (sin transacciones) | `0002-atomicidad-de-stock.md` |
 | 0003 | Búsqueda vectorial local con colecciones separadas (manual / catálogo) | `0003-busqueda-vectorial-local.md` |
-| 0004 | OpenSpec como flujo Spec-Driven (reemplaza el flujo propio `sdd-openspec`) | `0004-openspec-como-flujo-sdd.md` |
+| 0004 | Token de sesión en `localStorage` con validación de expiración en cliente | `0004-token-de-sesion-en-localstorage.md` |
+| 0005 | OpenSpec como flujo Spec-Driven (reemplaza el flujo propio `sdd-openspec`) | `0005-openspec-como-flujo-sdd.md` |
+| 0006 | Streaming SSE sin librería y turno cancelado sin persistir | `0006-streaming-sse-y-cancelacion-sin-persistir.md` |
 
 ## Decisiones que van a necesitar ADR durante el desarrollo
 
 | Decisión pendiente | Por qué va a necesitar ADR |
 |---|---|
 | Dónde vive el estado de las notificaciones (derivado vs persistido) | Afecta consistencia y complejidad |
-| Estrategia de token del frontend (`localStorage` vs cookie `httpOnly`) | Es una decisión de seguridad con trade-off real |
 | Modelo de 7B elegido | El comportamiento de tool-calling varía mucho entre modelos del mismo tamaño |
 | Integración de la IA en el flujo de órdenes | Si el chat puede crear órdenes o sólo consultarlas es una decisión de producto |

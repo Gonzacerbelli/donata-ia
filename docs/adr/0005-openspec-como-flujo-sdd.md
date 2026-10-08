@@ -1,4 +1,4 @@
-# 0004. OpenSpec como flujo Spec-Driven
+# 0005. OpenSpec como flujo Spec-Driven
 
 **Estado:** Aceptada
 **Fecha:** 20261008
@@ -29,7 +29,7 @@ Adoptar OpenSpec como único flujo Spec-Driven:
   verificación, invariantes de negocio), `rules` por artefacto y `operations` para apply/archive.
 - Backfill as-built: `openspec/specs/<capability>/spec.md` documenta los 10 CU construidos,
   con los endpoints reales; los desvíos respecto de `docs/CASOS_DE_USO.md` se anotan como
-  pendientes (ej. streaming SSE), nunca como requisitos falsos.
+  pendientes (ej. el catálogo de tools del CU07), nunca como requisitos falsos.
 - Se deprecian el skill `sdd-openspec`, los comandos `/sdd-*`, el subagente `spec-research` y
   la carpeta `specs/`. `docs/CASOS_DE_USO.md` sigue siendo el entregable validado y no se toca.
 
