@@ -223,9 +223,11 @@ pantalla respeta los cuatro estados (cargando/vacío/error/datos). Verificado co
 **Estado F7.** `NotificationBell` en el header con badge de no leídos, panel agrupado por severidad,
 acciones masivas (marcar leídas / descartar todo) y deep links a la entidad (`sale` → detalle de
 orden, `product` → productos); se refresca cada 60 s. El `ChatWidget` está disponible desde cualquier
-pantalla, persiste el hilo en `localStorage`, restaura el historial vía `GET /chat/threads/{id}/messages`,
-muestra el estado "pensando", renderiza los `tool_calls` y ofrece un reintento controlado ante `429`
-(`Retry-After`) y un mensaje claro ante `503` (Ollama caído).
+ pantalla: el hilo activo se resuelve **por usuario contra Mongo** (`GET /chat/threads`, con la clave
+de `localStorage` sólo como preferencia — si no le pertenece al usuario se cae al hilo más reciente),
+restaura el historial vía `GET /chat/threads/{id}/messages`, muestra el estado "pensando", renderiza
+los `tool_calls` y ofrece un reintento controlado ante `429` (`Retry-After`) y un mensaje claro ante
+`503` (Ollama caído).
 
 **Desvío 7.3.** El backend expone el chat como `POST /chat` (request/response) y no como SSE; el
 frontend no usa streaming, pero conserva el resto (estado de pensamiento, `tool_calls` y deep links).
