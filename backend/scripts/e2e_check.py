@@ -12,6 +12,7 @@ from bson import ObjectId
 from app.db import close_db, connect_db, get_db
 from app.repositories import clients as clients_repo
 from app.repositories import products as products_repo
+from app.services import chat_history
 from app.services.llm import agent, assistant, guardrails, rag
 
 ORDEN_DE_EJEMPLO = (
@@ -136,6 +137,40 @@ async def main() -> None:
     assert product is not None and product.name == "Alfombra persa roja", pending["args"]
     print("Acción propuesta:", pending["tool"], "-", pending["summary"])
     print("Argumentos:", pending["args"])
+
+    print("\n=== 5) Streaming SSE con Ollama real ===")
+    assert not guardrails.is_off_topic(ORDEN_DE_EJEMPLO), "el pedido quedó fuera de tema"
+    thread_3 = f"hilo-e2e-stream-{int(time.time() * 1000)}"
+    await chat_history.create_thread(db, "e2e-check", thread_3)
+    events = []
+    async for event, payload in assistant.stream_message(
+        db, "e2e-check", thread_3, ORDEN_DE_EJEMPLO
+    ):
+        events.append((event, payload))
+        if event == "token":
+            print(payload["delta"], end="", flush=True)
+    print()
+
+    names = [name for name, _ in events]
+    assert names[0] == "start", f"el primer evento debe ser start: {names}"
+    assert names[-1] == "done", f"el último evento debe ser done: {names}"
+    tokens = [p["delta"] for n, p in events if n == "token"]
+    assert tokens, "no se recibió ningún token incremental"
+    text = "".join(tokens)
+    assert text.strip(), "el texto acumulado del stream quedó vacío"
+    final = events[-1][1]
+    assert final["response"].strip(), "done sin respuesta"
+    assert final["pending_action"] is not None, "done sin pending_action"
+    assert final["pending_action"]["tool"] in {"crear_cliente", "crear_venta"}
+    pendings = [n for n, _ in events if n == "pending_action"]
+    assert pendings == ["pending_action"], f"pending_action duplicado: {names}"
+    assert names.index("pending_action") == len(names) - 2, (
+        "pending_action debe ir justo antes de done"
+    )
+    print(f"Eventos: {names}")
+    print(f"Tokens incrementales: {len(tokens)}")
+    print(f"Acción propuesta: {final['pending_action']['tool']}")
+    print("Streaming verificado contra Ollama real ✓")
 
     await close_db()
 

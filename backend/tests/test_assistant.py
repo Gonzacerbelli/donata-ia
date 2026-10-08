@@ -1,4 +1,266 @@
+import json
+
 from app.services.llm import assistant, guardrails
+
+
+async def test_chat_stream_emits_events_and_persists_turn(auth_client, monkeypatch):
+    async def fake_run_agent(message, history=None, *, db=None, emit=None):
+        assert emit is not None
+        await emit("token", {"delta": "Tenés "})
+        await emit("token", {"delta": "3 productos."})
+        await emit("tool_start", {"name": "buscar_productos", "arguments": {"query": ""}})
+        await emit("tool_end", {"name": "buscar_productos", "ok": True, "result": []})
+        return "Tenés 3 productos.", [
+            {"name": "buscar_productos", "arguments": {"query": ""}, "result": [], "ok": True}
+        ]
+
+    monkeypatch.setattr(assistant.agent, "run_agent", fake_run_agent)
+
+    resp = await auth_client.post(
+        "/chat/stream", json={"thread_id": "hilo-sse", "message": "¿cuántos productos tengo?"}
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    events = _parse_sse(resp.text)
+    names = [event["event"] for event in events]
+    assert names[0] == "start"
+    assert names[-1] == "done"
+    assert names == ["start", "token", "token", "tool_start", "tool_end", "done"]
+    tokens = [event["data"]["delta"] for event in events if event["event"] == "token"]
+    assert tokens == ["Tenés ", "3 productos."]
+    done = events[-1]["data"]
+    assert done["response"] == "Tenés 3 productos."
+    assert done["thread_id"] == "hilo-sse"
+    assert done["tool_calls"][0]["name"] == "buscar_productos"
+    assert done["pending_action"] is None
+
+    messages = await auth_client.get("/chat/threads/hilo-sse/messages")
+    roles = [m["role"] for m in messages.json()]
+    assert roles == ["user", "assistant"]
+    assert messages.json()[-1]["content"] == "Tenés 3 productos."
+
+
+async def test_chat_stream_emits_pending_action(auth_client, monkeypatch):
+    async def fake_run_agent(message, history=None, *, db=None, emit=None):
+        entry = {
+            "name": "proponer_accion",
+            "arguments": {
+                "herramienta": "crear_cliente",
+                "argumentos": {"nombre": "Lucía Stream"},
+                "resumen": "Crear cliente Lucía Stream",
+            },
+            "result": "Propuesta registrada",
+            "ok": True,
+        }
+        if emit:
+            await emit("tool_start", {"name": "crear_cliente", "arguments": entry["arguments"]})
+            await emit("tool_end", {"name": "crear_cliente", "ok": True, "result": "ok"})
+        return "Puedo crear el cliente. ¿Confirmás?", [entry]
+
+    monkeypatch.setattr(assistant.agent, "run_agent", fake_run_agent)
+
+    resp = await auth_client.post(
+        "/chat/stream", json={"thread_id": "hilo-sse-pending", "message": "creá un cliente"}
+    )
+    events = _parse_sse(resp.text)
+    names = [event["event"] for event in events]
+    assert names[-2:] == ["pending_action", "done"]
+    pending = [event for event in events if event["event"] == "pending_action"][0]["data"]
+    assert pending["tool"] == "crear_cliente"
+    assert pending["summary"] == "Crear cliente Lucía Stream"
+    done = events[-1]["data"]
+    assert done["pending_action"]["token"] == pending["token"]
+
+    clients = await auth_client.get("/clients?search=Lucía Stream")
+    assert clients.json() == []
+
+
+async def test_chat_stream_emits_error_event_when_agent_fails(auth_client, monkeypatch):
+    from app.core.errors import DependencyUnavailableError
+
+    async def fake_run_agent(message, history=None, *, db=None, emit=None):
+        raise DependencyUnavailableError("El asistente no está disponible en este momento")
+
+    monkeypatch.setattr(assistant.agent, "run_agent", fake_run_agent)
+
+    resp = await auth_client.post(
+        "/chat/stream", json={"thread_id": "hilo-sse-error", "message": "hola"}
+    )
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+    names = [event["event"] for event in events]
+    assert names == ["start", "error"]
+    assert "no está disponible" in events[-1]["data"]["detail"]
+
+    messages = await auth_client.get("/chat/threads/hilo-sse-error/messages")
+    assert [m["role"] for m in messages.json()] == ["user"]
+
+
+async def test_chat_stream_off_topic_has_no_tokens(auth_client):
+    resp = await auth_client.post(
+        "/chat/stream",
+        json={"thread_id": "hilo-sse-off", "message": "¿quién ganó el mundial de fútbol?"},
+    )
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+    names = [event["event"] for event in events]
+    assert names == ["start", "done"]
+    assert events[-1]["data"]["response"] == guardrails.OUT_OF_SCOPE_REPLY
+
+
+async def test_chat_stream_matches_chat_contract(auth_client, monkeypatch):
+    async def fake_run_agent(message, history=None, *, db=None, emit=None):
+        if emit:
+            await emit("token", {"delta": "Mismo "})
+            await emit("token", {"delta": "contenido"})
+        return "Mismo contenido", []
+
+    monkeypatch.setattr(assistant.agent, "run_agent", fake_run_agent)
+    streamed = await auth_client.post(
+        "/chat/stream", json={"thread_id": "hilo-paridad-1", "message": "hola"}
+    )
+    done = _parse_sse(streamed.text)[-1]["data"]
+
+    monkeypatch.setattr(assistant.agent, "run_agent", fake_run_agent)
+    posted = await auth_client.post(
+        "/chat", json={"thread_id": "hilo-paridad-2", "message": "hola"}
+    )
+    comparable = {key: value for key, value in done.items() if key != "thread_id"}
+    assert {key: value for key, value in posted.json().items() if key != "thread_id"} == comparable
+
+
+def _parse_sse(text: str) -> list[dict]:
+    events = []
+    for frame in text.split("\n\n"):
+        if not frame.strip():
+            continue
+        event, data = None, None
+        for line in frame.split("\n"):
+            if line.startswith("event: "):
+                event = line[7:]
+            elif line.startswith("data: "):
+                data = json.loads(line[6:])
+        events.append({"event": event, "data": data})
+    return events
+
+
+def _fake_agent_env(monkeypatch, rounds: list[list]):
+    """LLM falso que consume `rounds` de chunks AIMessageChunk y una tool de lectura."""
+    from langchain_core.tools import tool
+
+    from app.services.llm import agent
+
+    @tool
+    def buscar_productos(query: str) -> str:
+        """Busca productos por nombre."""
+        return "3 productos con stock"
+
+    class FakeLLM:
+        def __init__(self):
+            self._rounds = list(rounds)
+            self._i = 0
+            self.ainvoke_calls = 0
+
+        def bind_tools(self, tools):
+            return self
+
+        async def astream(self, messages):
+            for chunk in self._rounds[self._i]:
+                yield chunk
+            self._i += 1
+
+        async def ainvoke(self, messages):
+            self.ainvoke_calls += 1
+            raise AssertionError("run_agent debe usar astream, no ainvoke")
+
+    fake = FakeLLM()
+
+    async def fake_toolsets():
+        return [buscar_productos], []
+
+    monkeypatch.setattr(agent, "get_llm", lambda temperature=0: fake)
+    monkeypatch.setattr(agent, "toolsets", fake_toolsets)
+    return fake
+
+
+def _tool_call_round():
+    from langchain_core.messages import AIMessageChunk
+
+    return [
+        AIMessageChunk(
+            content="",
+            tool_call_chunks=[
+                {
+                    "name": "buscar_productos",
+                    "args": '{"query": "alfombra"}',
+                    "id": "call-1",
+                    "index": 0,
+                }
+            ],
+        )
+    ]
+
+
+def _text_round():
+    from langchain_core.messages import AIMessageChunk
+
+    return [AIMessageChunk(content="Tenés "), AIMessageChunk(content="3 productos con stock.")]
+
+
+async def test_run_agent_emits_token_and_tool_events(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(monkeypatch, [_tool_call_round(), _text_round()])
+    events = []
+
+    async def emit(event, payload):
+        events.append((event, payload))
+
+    reply, log = await agent.run_agent("cuántos productos tengo con stock?", emit=emit)
+
+    assert [event for event, _ in events] == ["tool_start", "tool_end", "token", "token"]
+    tool_start = events[0][1]
+    assert tool_start["name"] == "buscar_productos"
+    assert tool_start["arguments"] == {"query": "alfombra"}
+    tool_end = events[1][1]
+    assert tool_end["name"] == "buscar_productos"
+    assert tool_end["ok"] is True
+    assert tool_end["result"] == "3 productos con stock"
+    tokens = [payload["delta"] for event, payload in events if event == "token"]
+    assert tokens == ["Tenés ", "3 productos con stock."]
+    assert reply == "Tenés 3 productos con stock."
+    assert reply == "".join(tokens)
+    assert log[0]["name"] == "buscar_productos"
+    assert log[0]["ok"] is True
+
+
+async def test_run_agent_without_emit_returns_identical_result(monkeypatch):
+    from app.services.llm import agent
+
+    message = "cuántos productos tengo con stock?"
+
+    _fake_agent_env(monkeypatch, [_tool_call_round(), _text_round()])
+    without = await agent.run_agent(message)
+
+    _fake_agent_env(monkeypatch, [_tool_call_round(), _text_round()])
+    events = []
+
+    async def emit(event, payload):
+        events.append((event, payload))
+
+    with_events = await agent.run_agent(message, emit=emit)
+
+    assert without == with_events
+    assert events
+
+
+async def test_run_agent_default_emit_is_noop(monkeypatch):
+    from app.services.llm import agent
+
+    _fake_agent_env(monkeypatch, [_text_round()])
+    reply, log = await agent.run_agent("cuántos productos tengo?", emit=None)
+    assert reply == "Tenés 3 productos con stock."
+    assert log == []
 
 
 async def test_chat_blocks_off_topic(auth_client):

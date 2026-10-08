@@ -2,6 +2,7 @@ import ast
 import json
 import os
 import re
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain_core.messages import (
@@ -86,6 +87,8 @@ WRITE_TOOLS = {
     "cancelar_venta",
     "reponer_stock",
 }
+
+EmitFn = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 _TYPE_LABELS = {
     "string": "texto",
@@ -280,7 +283,12 @@ async def run_agent(
     history: list[tuple[str, str]] | None = None,
     *,
     db=None,
+    emit: EmitFn | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
+    async def _emit(event: str, payload: dict[str, Any]) -> None:
+        if emit is not None:
+            await emit(event, payload)
+
     tool_calls_log: list[dict[str, Any]] = []
     tools, write_tools = await toolsets()
     tool_map = {tool.name: tool for tool in tools}
@@ -294,7 +302,14 @@ async def run_agent(
     messages.append(HumanMessage(content=message))
 
     for _ in range(MAX_STEPS):
-        ai_message = await llm.ainvoke(messages)
+        ai_message = None
+        async for chunk in llm.astream(messages):
+            content = getattr(chunk, "content", None)
+            if isinstance(content, str) and content:
+                await _emit("token", {"delta": content})
+            ai_message = chunk if ai_message is None else ai_message + chunk
+        if ai_message is None:
+            ai_message = await llm.ainvoke(messages)
         messages.append(ai_message)
         calls = getattr(ai_message, "tool_calls", None) or []
         if not calls:
@@ -324,6 +339,7 @@ async def run_agent(
             return text, tool_calls_log
         for call in calls:
             if call["name"] in WRITE_TOOLS:
+                await _emit("tool_start", {"name": call["name"], "arguments": call["args"]})
                 entry = _write_proposal(write_tools, call)
                 if entry.get("ok"):
                     feedback = await reference_feedback(
@@ -332,18 +348,25 @@ async def run_agent(
                     if feedback:
                         entry = {**entry, "ok": False, "result": feedback}
                 tool_calls_log.append(entry)
+                await _emit(
+                    "tool_end",
+                    {"name": call["name"], "ok": entry.get("ok", False), "result": entry["result"]},
+                )
                 messages.append(ToolMessage(content=entry["result"], tool_call_id=call["id"]))
                 continue
             tool = tool_map.get(call["name"])
+            await _emit("tool_start", {"name": call["name"], "arguments": call["args"]})
             result = await _invoke_tool(tool, call["args"])
+            ok = _result_ok(call["name"], result)
             tool_calls_log.append(
                 {
                     "name": call["name"],
                     "arguments": call["args"],
                     "result": result,
-                    "ok": _result_ok(call["name"], result),
+                    "ok": ok,
                 }
             )
+            await _emit("tool_end", {"name": call["name"], "ok": ok, "result": result})
             messages.append(ToolMessage(content=_stringify(result), tool_call_id=call["id"]))
     return (
         "No pude completar la consulta en varios intentos. ¿Podés reformularla?",

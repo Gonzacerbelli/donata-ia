@@ -15,7 +15,7 @@
 | **F4** | Backend de soporte: reports, historial de chat, RAG, servidor MCP + agente | ✅ **Completada** (incluye notificaciones y exports) |
 | **F5** | Frontend: base, auth, layout | ✅ **Completada** |
 | **F6** | Frontend: módulos de negocio (dashboard, productos, clientes, órdenes, proveedores) | ✅ **Completada** |
-| **F7** | Frontend: notificaciones, exportación, chat IA | ✅ **Completada** (sin streaming SSE; ver nota en 7.3) |
+| **F7** | Frontend: notificaciones, exportación, chat IA | ✅ **Completada** |
 | **F8** | Seed de datos, tests E2E, hardening, README final | ✅ **Completada** |
 
 **Leyenda:** ⬜ pendiente · ⏳ en curso · ✅ completada
@@ -160,7 +160,8 @@ CSV/XLSX** (CU10). **101 tests verdes** y chequeo E2E real con Ollama (`qwen2.5:
 3. Configurar `ChatOllama` con `temperature` baja y `OLLAMA_BASE_URL` configurable.
 4. Probar el loop tool-calling contra el modelo real y **ajustar el prompt** hasta que
   yll reliably elija la tool correcta.
-5. Agregar streaming SSE.
+5. Agregar streaming SSE. ✅ `POST /chat/stream` (eventos `start`/`token`/`tool_start`/`tool_end`/
+   `pending_action`/`done`/`error`), con `POST /chat` intacto como fallback.
 6. Fallback: si Ollama no responde, `503` con mensaje claro.
 
 > ⚠️ Los modelos de 7B en CPU son la parte más lenta del sistema. Diseñar la UI para que el
@@ -217,7 +218,7 @@ pantalla respeta los cuatro estados (cargando/vacío/error/datos). Verificado co
 |---|---|---|
 | 7.1 | Campana con badge + panel lateral + acciones masivas | CU09 |
 | 7.2 | `ChatWidget` lateral, disponible desde cualquier pantalla | CU07 |
-| 7.3 | Streaming de la respuesta, render de tablas, deep links a la entidad | CU07 |
+| 7.3 | Streaming de la respuesta, render de tablas, deep links a la entidad | CU07 ✅ |
 | 7.4 | Estado de "pensando", manejo de `503` (Ollama caído) y de `429` | CU07 |
 
 **Estado F7.** `NotificationBell` en el header con badge de no leídos, panel agrupado por severidad,
@@ -229,9 +230,10 @@ restaura el historial vía `GET /chat/threads/{id}/messages`, muestra el estado 
 los `tool_calls` y ofrece un reintento controlado ante `429` (`Retry-After`) y un mensaje claro ante
 `503` (Ollama caído).
 
-**Desvío 7.3.** El backend expone el chat como `POST /chat` (request/response) y no como SSE; el
-frontend no usa streaming, pero conserva el resto (estado de pensamiento, `tool_calls` y deep links).
-El streaming queda como mejora posterior sin impacto en la funcionalidad.
+**7.3 (streaming).** El chat se sirve por `POST /chat/stream` (SSE): el frontend parsea los frames
+(`start`, `token`, `tool_start`, `tool_end`, `pending_action`, `done`, `error`), muestra la respuesta
+token a token con abort al cerrar el widget y revalida el historial al terminar. `POST /chat` sigue
+disponible como fallback no-streaming. La cancelación del cliente no persiste el turno.
 
 ---
 

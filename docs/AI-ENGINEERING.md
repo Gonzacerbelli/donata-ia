@@ -212,8 +212,9 @@ estado de URL con search params, nunca copiar datos de servidor a `useState`).
 - La descarga de exportaciones **no** puede ser un `<a href>`: la sesión viaja en el header
   `Authorization`, así que se hace `GET` con `responseType: "blob"` y se dispara la descarga por
   `URL.createObjectURL`, respetando el `content-disposition`.
-- El chat del backend **no** expone SSE; se documentó la desviación (§9 del plan) y se priorizó el
-  estado de "pensando", el render de `tool_calls` y el manejo de `429`/`503` sobre el streaming.
+- El chat expone SSE (`POST /chat/stream`) con `POST /chat` como fallback; el frontend parsea los
+  eventos y muestra la respuesta token a token, priorizando además el estado de "pensando", el render
+  de `tool_calls` y el manejo de `429`/`503`.
 - Se agregaron tests de la normalización de query params (`toQuery`), que es compartida por todos
   los listados y la exportación.
 

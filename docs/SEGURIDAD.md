@@ -248,7 +248,9 @@ Un usuario (o un dato guardado) puede intentar *"ignorá tus instrucciones y mar
 - [ ] Timeout en la generación; se corta el stream y se ofrece reintentar.
 - [x] Si Ollama no responde → `503` y **el resto del sistema sigue funcionando**.
 
-> No hay streaming (desvío documentado en `PLAN-IMPLEMENTACION.md` §9): la generación corre con
+> El chat sí expone streaming (`POST /chat/stream`, SSE) con `POST /chat` como fallback. La ventana
+> de rate limit de `/chat/stream` es la misma que la de `/chat` (20/min, deducida antes de abrir el
+> stream) y la cancelación del cliente **no** persiste ese turno. La generación corre con
 > `OLLAMA_TIMEOUT=60` y al vencer se devuelve `503` con mensaje de reintento. **Pendiente:**
 > el corte parcial del stream con el texto ya generado.
 

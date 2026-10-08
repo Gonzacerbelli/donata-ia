@@ -1,4 +1,9 @@
+import asyncio
+import json
+from collections.abc import AsyncGenerator
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from ..dependencies import CurrentUser, Database, get_current_user
 from ..schemas.chat import (
@@ -20,6 +25,22 @@ router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(get_curr
 async def chat(body: ChatRequest, user: CurrentUser, db: Database) -> ChatResponse:
     result = await assistant.handle_message(db, str(user.id), body.thread_id, body.message)
     return ChatResponse(**result)
+
+
+async def _sse(events) -> AsyncGenerator[str]:
+    try:
+        async for event, payload in events:
+            data = json.dumps(payload, ensure_ascii=False, default=str)
+            yield f"event: {event}\ndata: {data}\n\n"
+    except asyncio.CancelledError:
+        raise
+
+
+@router.post("/stream")
+async def chat_stream(body: ChatRequest, user: CurrentUser, db: Database) -> StreamingResponse:
+    await chat_service.create_thread(db, str(user.id), body.thread_id)
+    events = assistant.stream_message(db, str(user.id), body.thread_id, body.message)
+    return StreamingResponse(_sse(events), media_type="text/event-stream")
 
 
 @router.post("/confirm", response_model=ChatResponse)

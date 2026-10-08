@@ -6,14 +6,16 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { chatApi } from "@/features/chat/api";
-import { useChatMessages } from "@/features/chat/hooks";
+import { chatKeys, useChatMessages } from "@/features/chat/hooks";
 import { SIZE_KEY, clampSize, parseSize, type WidgetSize } from "@/features/chat/size";
 import { newThreadId, resolveThreadId, saveThreadId } from "@/features/chat/thread";
 import { ApiError } from "@/lib/http";
-import type { ChatMessage, PendingAction } from "@/types/domain";
+import type { ChatMessage, ChatResponse, PendingAction } from "@/types/domain";
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -23,9 +25,12 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
   const [size, setSize] = useState<WidgetSize>(() =>
     parseSize(localStorage.getItem(SIZE_KEY), {
       width: window.innerWidth,
@@ -64,8 +69,15 @@ export function ChatWidget() {
   }, [history.data]);
 
   useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [threadId, open]);
+
+  useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, pending, open]);
+  }, [messages, pending, streamingText, open]);
 
   useEffect(() => {
     if (retryAfter <= 0) return;
@@ -139,6 +151,7 @@ export function ChatWidget() {
     setPendingAction(null);
     setInput("");
     setPending(true);
+    setStreamingText(null);
     const optimistic: ChatMessage = {
       id: `local-user-${Date.now()}`,
       thread_id: threadId,
@@ -148,14 +161,30 @@ export function ChatWidget() {
       created_at: new Date().toISOString(),
     };
     setMessages((current) => [...current, optimistic]);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let final: ChatResponse | null = null;
     try {
-      const response = await chatApi.send(threadId, text);
-      setPendingAction(response.pending_action);
-      appendAssistant(response);
+      for await (const event of chatApi.stream(threadId, text, controller.signal)) {
+        if (event.event === "token") {
+          setStreamingText((current) => (current ?? "") + event.data.delta);
+        } else if (event.event === "done") {
+          final = event.data;
+        } else if (event.event === "error") {
+          setError(event.data.detail);
+        }
+      }
     } catch (err) {
-      handleFailure(err);
+      if (!controller.signal.aborted) handleFailure(err);
     } finally {
+      abortRef.current = null;
+      setStreamingText(null);
       setPending(false);
+    }
+    if (final) {
+      setPendingAction(final.pending_action);
+      appendAssistant(final);
+      void queryClient.invalidateQueries({ queryKey: chatKeys.messages(threadId) });
     }
   }
 
@@ -255,7 +284,14 @@ export function ChatWidget() {
                 </div>
               ))
             )}
-            {pending && (
+            {pending && streamingText !== null && (
+              <div className="text-left">
+                <div className="inline-block max-w-[85%] whitespace-pre-wrap rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800">
+                  {streamingText}
+                </div>
+              </div>
+            )}
+            {pending && streamingText === null && (
               <div className="flex items-center gap-2 text-sm text-slate-400">
                 <Spinner />
                 Pensando…

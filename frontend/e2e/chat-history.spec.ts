@@ -21,8 +21,11 @@ test("el historial del chat se conserva al actualizar la página", async ({ page
     { timeout: 120_000 },
   );
   await page.getByRole("button", { name: "Enviar" }).click();
-  expect((await sent).status()).toBe(200);
+  const response = await sent;
+  expect(response.status()).toBe(200);
   await expect(page.getByText(ultimoMensaje, { exact: true })).toBeVisible();
+  // El turno se persiste al cerrarse el stream; recargar antes cancela y no guarda nada.
+  await response.body();
 
   await page.reload();
   await openChat(page);

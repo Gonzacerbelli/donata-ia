@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any
 
@@ -48,6 +49,30 @@ def _pending_from(tool_calls: list[dict], *, user_id: str, thread_id: str) -> di
     return None
 
 
+async def _finalize_turn(
+    db, user_id: str, thread_id: str, reply: str, tool_calls: list[dict]
+) -> dict:
+    pending = None
+    if settings.guardrails_enabled:
+        reply = guardrails.sanitize_answer(reply)
+        issues = guardrails.validate_answer(reply)
+        if issues:
+            reply = guardrails.GUARDED_REPLY
+            tool_calls = []
+        else:
+            pending = _pending_from(tool_calls, user_id=user_id, thread_id=thread_id)
+    else:
+        pending = _pending_from(tool_calls, user_id=user_id, thread_id=thread_id)
+
+    await chat_history.append_message(db, thread_id, "assistant", reply, tool_calls=tool_calls)
+    return {
+        "thread_id": thread_id,
+        "response": reply,
+        "tool_calls": tool_calls,
+        "pending_action": pending,
+    }
+
+
 async def handle_message(db, user_id: str, thread_id: str, message: str) -> dict:
     await chat_history.create_thread(db, user_id, thread_id)
     await chat_history.append_message(db, thread_id, "user", message)
@@ -72,25 +97,69 @@ async def handle_message(db, user_id: str, thread_id: str, message: str) -> dict
     except Exception as exc:
         raise DependencyUnavailableError("El asistente no está disponible en este momento") from exc
 
-    pending = None
-    if settings.guardrails_enabled:
-        reply = guardrails.sanitize_answer(reply)
-        issues = guardrails.validate_answer(reply)
-        if issues:
-            reply = guardrails.GUARDED_REPLY
-            tool_calls = []
-        else:
-            pending = _pending_from(tool_calls, user_id=user_id, thread_id=thread_id)
-    else:
-        pending = _pending_from(tool_calls, user_id=user_id, thread_id=thread_id)
+    return await _finalize_turn(db, user_id, thread_id, reply, tool_calls)
 
-    await chat_history.append_message(db, thread_id, "assistant", reply, tool_calls=tool_calls)
-    return {
-        "thread_id": thread_id,
-        "response": reply,
-        "tool_calls": tool_calls,
-        "pending_action": pending,
-    }
+
+async def stream_message(db, user_id: str, thread_id: str, message: str):
+    """Genera los eventos (evento, payload) de un turno para transmitir por SSE."""
+    yield "start", {"thread_id": thread_id}
+
+    if settings.guardrails_enabled and guardrails.is_off_topic(message):
+        reply = guardrails.OUT_OF_SCOPE_REPLY
+        await chat_history.append_message(db, thread_id, "user", message)
+        await chat_history.append_message(db, thread_id, "assistant", reply)
+        yield (
+            "done",
+            {
+                "thread_id": thread_id,
+                "response": reply,
+                "tool_calls": [],
+                "pending_action": None,
+            },
+        )
+        return
+
+    history = await chat_history.list_messages(
+        db, user_id, thread_id, limit=settings.chat_history_limit
+    )
+    prior = [(m.role, m.content) for m in history]
+
+    queue: asyncio.Queue = asyncio.Queue()
+    outcome: dict[str, Any] = {}
+
+    async def emit(event: str, payload: dict) -> None:
+        await queue.put((event, payload))
+
+    async def run() -> None:
+        try:
+            reply, tool_calls = await agent.run_agent(message, prior, db=db, emit=emit)
+            outcome["reply"] = reply
+            outcome["tool_calls"] = tool_calls
+        except Exception:
+            outcome["error"] = "El asistente no está disponible en este momento"
+        finally:
+            await queue.put((None, None))
+
+    task = asyncio.create_task(run())
+    try:
+        while True:
+            event, payload = await queue.get()
+            if event is None:
+                break
+            yield event, payload
+    finally:
+        task.cancel()
+
+    if "error" in outcome:
+        await chat_history.append_message(db, thread_id, "user", message)
+        yield "error", {"detail": outcome["error"]}
+        return
+
+    await chat_history.append_message(db, thread_id, "user", message)
+    result = await _finalize_turn(db, user_id, thread_id, outcome["reply"], outcome["tool_calls"])
+    if result["pending_action"] is not None:
+        yield "pending_action", result["pending_action"]
+    yield "done", result
 
 
 def _unwrap_result(result: Any) -> Any:
