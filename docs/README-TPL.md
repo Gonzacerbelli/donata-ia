@@ -181,7 +181,7 @@ donata-ia/
 ├── backend/          FastAPI: routers, services, repositories, tests
 ├── frontend/         React: features, components, lib
 ├── docs/             Especificación, arquitectura, seguridad, bitácora
-├── specs/            Especificaciones por caso de uso
+├── openspec/         Specs as-built y propuestas de cambios (OpenSpec)
 ├── scripts/          Utilidades
 ├── AGENTS.md         Contexto del proyecto para agentes de IA
 └── opencode.json     Configuración de agentes, comandos y MCP

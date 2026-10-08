@@ -68,31 +68,6 @@
   },
 
   "agent": {
-    "spec-research": {
-      "description": "Investiga el sistema heredado y el contexto de un caso de uso antes de disenar. No escribe codigo.",
-      "mode": "subagent",
-      "permission": {
-        "edit": "deny",
-        "bash": "ask",
-        "webfetch": "allow"
-      }
-    },
-    "spec-design": {
-      "description": "Disena la solucion tecnica de un caso de uso: modelo de datos, endpoints, componentes, flujos. No escribe codigo de implementacion.",
-      "mode": "subagent",
-      "permission": {
-        "edit": "allow",
-        "bash": "ask"
-      }
-    },
-    "spec-tasks": {
-      "description": "Descompone un diseño en tareas atomicas y verificables, cada una con su criterio de terminado.",
-      "mode": "subagent",
-      "permission": {
-        "edit": "allow",
-        "bash": "ask"
-      }
-    },
     "backend-engineer": {
       "description": "Implementa y testea en FastAPI + MongoDB respetando las reglas de negocio de AGENTS.md.",
       "mode": "subagent",

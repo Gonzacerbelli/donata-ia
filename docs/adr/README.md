@@ -57,7 +57,7 @@ cuestionan, se les escribe un ADR acá.
 | 5 | Montos en enteros ARS | `AGENTS.md` §3.6 |
 | 6 | Saldo siempre derivado | `AGENTS.md` §3.7 |
 | 7 | Stock atómico con auditoría | `AGENTS.md` §3.9 |
-| 8 | Spec-Driven Development | skill `sdd-openspec` |
+| 8 | Spec-Driven Development | `AGENTS.md` §7 · ADR `0004` |
 
 ## ADRs escritos
 
@@ -66,6 +66,7 @@ cuestionan, se les escribe un ADR acá.
 | 0001 | Las tools del agente se exponen en un servidor MCP propio | `0001-tools-del-agente-por-mcp.md` |
 | 0002 | Atomicidad de stock por `update` condicional (sin transacciones) | `0002-atomicidad-de-stock.md` |
 | 0003 | Búsqueda vectorial local con colecciones separadas (manual / catálogo) | `0003-busqueda-vectorial-local.md` |
+| 0004 | OpenSpec como flujo Spec-Driven (reemplaza el flujo propio `sdd-openspec`) | `0004-openspec-como-flujo-sdd.md` |
 
 ## Decisiones que van a necesitar ADR durante el desarrollo
 

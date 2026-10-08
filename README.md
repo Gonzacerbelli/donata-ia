@@ -124,9 +124,10 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
 | Herramienta | Rol |
 |---|---|
-| `opencode` + `opencode.json` | CLI de agentes: 8 subagentes, 4 comandos, 2 skills y 6 servidores MCP |
-| `.opencode/agent/` | spec-research · spec-design · spec-tasks · backend · frontend · ai-engineer · reviewer · security-auditor |
-| `.opencode/skill/ollama-local` | Reglas para trabajar con el modelo local (guardrails, confirmación, latencia) |
+| `opencode` + `opencode.json` | CLI de agentes: 5 subagentes, 9 comandos, 10 skills y 6 servidores MCP |
+| `.opencode/agent/` | backend · frontend · ai-engineer · reviewer · security-auditor |
+| `.opencode/skills/openspec-*` | Flujos de [OpenSpec](https://github.com/Fission-AI/OpenSpec): explore, propose, apply, verify, sync, archive, update, onboard |
+| `.opencode/skills/ollama-local` | Reglas para trabajar con el modelo local (guardrails, confirmación, latencia) |
 | LangChain + `langchain-mcp-adapters` | Bucle de tool-calling acotado (6 pasos) sobre MCP |
 | Ollama `qwen2.5:7b-instruct` | Lenguaje natural, temperatura 0 |
 | `nomic-embed-text` / `all-MiniLM-L6-v2` | Embeddings locales para RAG sobre el manual operativo |
@@ -135,19 +136,17 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
 | Agente | Rol | Delega en |
 |---|---|---|
-| spec-research | Investiga el sistema heredado antes de diseñar | `/sdd-research` |
-| spec-design | Diseña modelo de datos, endpoints y flujos | `/sdd-design` |
-| spec-tasks | Descompone en tareas verificables | `/sdd-design` |
-| backend-engineer / frontend-engineer | Implementan y testean | `/sdd-implement` |
+| OpenSpec (`openspec-*`) | Dirige el ciclo spec → código: propone, implementa por tareas y archiva | `/opsx-explore` · `/opsx-propose` · `/opsx-apply` · `/opsx-archive` |
+| backend-engineer / frontend-engineer | Implementan y testean | `/opsx-apply` |
 | ai-engineer | Ajusta prompt, tools y evaluación del modelo | chat del producto |
-| reviewer · security-auditor | Revisión adversarial y checklist de seguridad | `/sdd-implement` |
+| reviewer · security-auditor | Revisión adversarial y checklist de seguridad | `/opsx-apply` + `/opsx-verify` |
 
 ### 5.3 Prompts clave
 
 1. **System prompt del agente:** define idioma, "nunca inventes datos", pesos enteros y — el que
    cambió el comportamiento — *"las herramientas de escritura no están disponibles: usá
    `proponer_accion` y esperá la confirmación en pantalla"*.
-2. **Prompt de investigación (spec-research):** pedir leer el legado antes de diseñar eliminó
+2. **Prompt de investigación (hoy `/opsx-explore`):** pedir leer el legado antes de diseñar eliminó
    reinventar reglas ya probadas (stock atómico, saldo derivado).
 3. **Revisión adversarial:** "buscá invariantes rotas, casos borde y errores que el test no cubre"
    hizo aparecer los fallos de fechas UTC y de tipos del formulario.
@@ -231,7 +230,7 @@ donata-ia/
 ├── frontend/         React: features (auth, dashboard, providers, products,
 │                     clients, orders, notifications, chat), components, e2e/
 ├── docs/             CASOS_DE_USO, ARQUITECTURA, PLAN, SEGURIDAD, MCP, bitácora
-├── specs/            Especificaciones por caso de uso
+├── openspec/         Specs as-built y propuestas de cambios (OpenSpec)
 ├── scripts/          Utilidades (md2pdf)
 ├── AGENTS.md         Contexto del proyecto para agentes de IA
 └── opencode.json     Configuración de agentes, comandos y MCP

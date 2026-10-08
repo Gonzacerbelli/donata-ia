@@ -37,7 +37,7 @@ Por cada tarea relevante, agregar una entrada con esta estructura:
 |---|---|---|
 | Herramienta principal | **opencode** como CLI de desarrollo asistido | Agentes, comandos, skills y MCP configurables por proyecto |
 | Archivo de contexto | `AGENTS.md` en la raíz | Se carga automáticamente en cada sesión: las decisiones del proyecto persisten |
-| Framing del trabajo | **Spec-Driven Development** | La especificación precede al código; reduce la deriva entre lo pedido y lo construido |
+| Framing del trabajo | **Spec-Driven Development** con [OpenSpec](https://github.com/Fission-AI/OpenSpec) | La especificación precede al código; `openspec/specs/` queda como estado as-built y cada cambio pasa por propuesta aprobada |
 | Orquestación | Subagentes especializados por dominio | Un agente que hace una sola cosa pega más que uno que hace todo |
 | Protocolo | **MCP** para contexto externo | Ver `docs/MCP.md` |
 | Revisión | Ciclo de **revisión adversarial** antes de dar por terminado | "Implementá X" seguido de "¿qué se rompe en X?" encuentra errores que la implementación inicial no ve |
@@ -70,9 +70,7 @@ En `AGENTS.md` se consolidaron las reglas que gobiernan todo el desarrollo:
 
 | Agente | Rol | Por qué existe como agente separado |
 |---|---|---|
-| `spec-research` | Investiga el código heredado y el contexto antes de implementar | El agente que implementa no debería spendiar su contexto explorando |
-| `spec-design` | Diseña la solución técnica de un CU | Diseño e implementación requieren modos de razonamiento distintos |
-| `spec-tasks` | Descompone el diseño en tareas atómicas y verificables | Evita tareas de 8 horas que no se pueden verificar |
+| Skills `openspec-*` (`/opsx-*`) | Ciclo spec → código: explore, propose, apply, verify, sync, archive | El proceso vive en instrucciones versionadas, no en la memoria de la conversación |
 | `backend-engineer` | Implementa en FastAPI con las convenciones del proyecto | Contexto acotado al dominio backend |
 | `frontend-engineer` | Implementa en React con las convenciones del proyecto | Contexto acotado al dominio frontend |
 | `ai-engineer` | Agente de LangChain, tools y prompts del chat | El chat es un subsistema particular: necesita un prompt y una evaluación propios |

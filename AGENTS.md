@@ -243,23 +243,28 @@ Detalle completo en `docs/SEGURIDAD.md`. Mínimo obligatorio:
 
 ## 7. Cómo trabajar en este repo (proceso)
 
-El proyecto se construye **Spec-Driven**: la especificación es la fuente de verdad, el código
-la implementa.
+El proyecto se construye **Spec-Driven con [OpenSpec](https://github.com/Fission-AI/OpenSpec)**:
+`openspec/specs/` describe el sistema tal como está construido, y todo cambio nuevo pasa por una
+propuesta aprobada **antes** de escribir código.
 
 ```
-spec  →  diseño  →  tareas  →  implementación  →  verificación
+explore → propose → review → apply → verify → archive
 ```
 
-1. **Antes de implementar un CU**, leé su sección en `docs/CASOS_DE_USO.md`. Los criterios de
-   aceptación son el checklist de terminado.
-2. **Un CU por vez.** No mezcles cambios de dos casos de uso en el mismo commit.
+Los flujos viven en los skills `openspec-*` y sus comandos `/opsx-*`
+(`/opsx-explore`, `/opsx-propose`, `/opsx-apply`, `/opsx-verify`, `/opsx-sync`, `/opsx-archive`).
+
+1. **Antes de implementar un CU**, leé su sección en `docs/CASOS_DE_USO.md` y su spec en
+   `openspec/specs/`. Los criterios de aceptación son el checklist de terminado.
+2. **Un change por vez.** No mezcles dos propuestas en la misma rama; las tareas viven en
+   `openspec/changes/<nombre>/tasks.md` y se van tachando al implementar.
 3. **TDD en el backend**: test que falla → implementación → suite verde. El backend hereda el
    patrón de `donata-deco/backend/tests`.
 4. **Verificá antes de dar algo por terminado**: `pytest` + typecheck + lint del frontend.
    Si algo falla, **no** digas que está terminado. Iterá.
 5. **Documentá mientras avanzás**: los prompts que usaste, los intentos fallidos y por qué
-  .serverá la bitácora de AI Engineering del README (1 pt + 3 pts de rúbrica).
-6. **Commits chicoes y verificables**, mensajes en español, en modo imperativo.
+   fallaron. Alimentá la bitácora de AI Engineering del README (1 pt + 3 pts de rúbrica).
+6. **Commits chicos y verificables**, mensajes en español, en modo imperativo.
 
 ### Iteración con IA — lo que se evalúa
 
@@ -283,8 +288,12 @@ donata-ia/
 ├── opencode.json          → configuración de agentes, comandos, MCP y permisos
 ├── .opencode/
 │   ├── agent/             → subagentes especializados
-│   ├── command/           → comandos /sdd-* del flujo spec-driven
-│   └── skills/            → skills reutilizables
+│   ├── commands/          → comandos /opsx-* de OpenSpec + /nueva-regla
+│   └── skills/            → skills openspec-* y ollama-local
+├── openspec/
+│   ├── config.yaml        → context, rules y operations del flujo OpenSpec
+│   ├── specs/             → especificaciones vivas del sistema (as-built)
+│   └── changes/           → propuestas en curso y archive/
 ├── docs/
 │   ├── CASOS_DE_USO.md    → los 10 casos de uso (fuente de verdad funcional)
 │   ├── CASOS_DE_USO.pdf   → entregable para validación docente
@@ -300,8 +309,7 @@ donata-ia/
 │   ├── knowledge/         → manual operativo (fuente del RAG)
 │   └── scripts/           → ingest_kb.py, e2e_check.py
 ├── frontend/              → React + Vite
-├── scripts/               → utilidades (incluye md2pdf.py)
-└── specs/                 → especificaciones por CU (flujo SDD)
+└── scripts/               → utilidades (incluye md2pdf.py)
 ```
 
 ---
@@ -323,4 +331,4 @@ donata-ia/
 1. Leer `docs/PLAN-IMPLEMENTACION.md` → sección de estado.
 2. Confirmar con el usuario el **feedback de validación** de los casos de uso.
 3. Ajustar los documentos si el docente pidió cambios.
-4. Elegir el primer CU a implementar y arrancar el flujo spec-driven.
+4. Elegir el primer CU a implementar y arrancar un change con `/opsx-propose`.
