@@ -187,15 +187,18 @@ montos enteros). Verificación E2E real:
 docker compose run --rm --no-deps api python -m scripts.e2e_check
 ```
 
-**Plano B — en el entorno de desarrollo** (`opencode.json`):
+**Plano B — en el entorno de desarrollo** (bloque `mcp` de [`opencode.json`](opencode.json)):
 
-| Servidor | Tipo | Rol en el desarrollo |
-|---|---|---|
-| `context7` | externo | Documentación versionada de librerías |
-| `filesystem` | externo | Acceso al sistema heredado a portar |
-| `playwright` | externo | Verificación de la UI en navegador real |
-| `sequential-thinking` | externo | Razonamiento estructurado para decisiones complejas |
-| `github` | externo remoto | Rama + PR + merge de cada hito |
+| Servidor | Tipo | Configuración | Rol en el desarrollo |
+|---|---|---|---|
+| `context7` | local (externo) | `["npx","-y","@upstash/context7-mcp"]` | Documentación versionada de librerías |
+| `filesystem` | local (externo) | `["npx","-y","@modelcontextprotocol/server-filesystem", <repo heredado>, <repo actual>]` | Acceso al sistema heredado a portar |
+| `playwright` | local (externo) | `["npx","-y","@playwright/mcp"]` + `BROWSER=chromium` | Verificación de la UI en navegador real |
+| `sequential-thinking` | local (externo) | `["npx","-y","@modelcontextprotocol/server-sequential-thinking"]` | Razonamiento estructurado para decisiones complejas |
+| `github` | **remoto** | `url: https://api.githubcopilot.com/mcp/`, header `Authorization: Bearer {env:GITHUB_PAT}` | Rama + PR + merge de cada hito |
+
+Configuración completa y notas: [`docs/MCP.md`](docs/MCP.md) §3. Los servidores `local` corren
+como subproceso vía `npx`; el único **remoto** es `github`.
 
 Cobertura: **1 servidor MCP propio en el producto** + **5 servidores MCP en el entorno de
 desarrollo (uno remoto)**.
