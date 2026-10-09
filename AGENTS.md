@@ -39,10 +39,10 @@ orquestación de agentes, prompts deliberados, iteraciones y verificación autom
 | Configuración de agentes/IA | ✅ `AGENTS.md` + `opencode.json` + `.opencode/{agent,command,skills}` |
 | Docker / compose | ✅ `docker-compose.yml` (api + mongo) + `backend/Dockerfile` |
 | Backend FastAPI | ✅ Núcleo + negocio + soporte: auth, proveedores, productos, clientes, ventas, stock, reportes, historial de chat |
-| IA: RAG + agente MCP | ✅ `donata-mcp` (12 tools) + agente LangChain con tool-calling + RAG (Chroma) — E2E real con Ollama |
+| IA: RAG + agente MCP | ✅ `donata-mcp` (16 tools) + agente LangChain con tool-calling + RAG (Chroma) — E2E real con Ollama |
 | Frontend React | ✅ F5–F7: auth, dashboard, proveedores, productos, clientes, órdenes, notificaciones, chat |
 | Seed / datos de prueba | ✅ `backend/scripts/seed_demo.py` (productos, clientes y órdenes del último año) |
-| Tests | ✅ 111 tests verdes (backend) · 15 unit + 4 E2E (frontend) |
+| Tests | ✅ 142 funciones de test (≈176 casos) verdes (backend) · 45 unit + 9 E2E (frontend) |
 | README final del TP | ✅ `README.md` (estructura de `docs/README-TPL.md`) |
 | Hardening / checklist de seguridad | ✅ `docs/SEGURIDAD.md` §7 verificado; deudas conocidas listadas ahí |
 
@@ -94,13 +94,13 @@ Todo producto pertenece a **exactamente un** proveedor.
 
 ### 3.3 IA 100 % local
 
-El asistente usa un **modelo local de ~7B parámetros** (Ollama). No hay API de IA cloud.
+El asistente usa un **modelo local de 14B parámetros** (Ollama). No hay API de IA cloud.
 
 - No agregar `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` ni similar.
 - `OLLAMA_BASE_URL` apunta a `localhost:11434` (o `host.docker.internal:11434` si el backend
   corre en Docker).
-- Modelo por defecto: `qwen2.5:7b-instruct` (buen seguimiento de instrucciones y tool-calling
-  en español). Alternativas aceptables: `llama3.1:8b`, `mistral:7b`.
+- Modelo por defecto: `qwen2.5:14b-instruct` (buen seguimiento de instrucciones y tool-calling
+  en español). Alternativas aceptables: `qwen2.5:7b-instruct`, `llama3.1:8b`, `mistral:7b`.
 - `temperature` baja (0.1–0.2): los datos de negocio no admiten creativity.
 - **Si Ollama no está disponible, el sistema debe operar con normalidad** y el chat informar
   que no está disponible. La IA es un accesorio, no un punto único de falla.
@@ -169,7 +169,7 @@ hay producto de catálogo que los represente. Ambos tipos conviven en la misma o
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS + TanStack Query + React Router + Zod |
 | Backend | Python 3.12 + FastAPI + Pydantic v2 + Motor + PyJWT |
 | BD | MongoDB Atlas (SRV) |
-| IA | LangChain + `langchain-ollama` (Ollama ~7B) + **MCP** (`fastmcp` + `langchain-mcp-adapters`) + RAG (`chromadb` + embeddings HuggingFace) |
+| IA | LangChain + `langchain-ollama` (Ollama 14B) + **MCP** (`fastmcp` + `langchain-mcp-adapters`) + RAG (`chromadb` + embeddings HuggingFace) |
 | Infra | Docker + Docker Compose |
 | Tests | pytest + pytest-asyncio + httpx (backend), Vitest (frontend) |
 
@@ -236,7 +236,7 @@ Detalle completo en `docs/SEGURIDAD.md`. Mínimo obligatorio:
 ### IA
 - [ ] El LLM no accede a la BD: sólo tools tipadas.
 - [ ] Confirmación humana antes de toda escritura.
-- [x] Rate limit dedicado al chat (un 7B en CPU es un recurso caro y limitado).
+- [x] Rate limit dedicado al chat (un modelo 14B en CPU es un recurso caro y limitado).
 - [ ] Historial de conversaciones para auditoría.
 
 ---

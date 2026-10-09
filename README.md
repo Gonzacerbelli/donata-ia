@@ -15,7 +15,7 @@ pedidos, proveedores y envíos, con un asistente de IA local.
 | Frontend | React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query · React Router |
 | Backend | FastAPI · Pydantic v2 · Motor (MongoDB asíncrono) · PyJWT |
 | Base de datos | MongoDB (local en Docker o Atlas) |
-| IA | LangChain + MCP (`langchain-mcp-adapters`) + modelo local 7B vía Ollama |
+| IA | LangChain + MCP (`langchain-mcp-adapters`) + modelo local 14B vía Ollama |
 | Infraestructura | Docker · Docker Compose |
 | Tests | pytest · Vitest · Playwright |
 
@@ -27,7 +27,7 @@ pedidos, proveedores y envíos, con un asistente de IA local.
 git clone https://github.com/Gonzacerbelli/donata-ia.git
 cd donata-ia
 cp .env.example .env          # completar variables (ver abajo)
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:14b-instruct
 ollama pull nomic-embed-text
 docker compose up --build
 ```
@@ -47,7 +47,7 @@ Login local de emergencia (habilitado por `ENABLE_LOCAL_LOGIN=true`): `admin` / 
 docker compose run --rm --no-deps api python -m scripts.seed_demo
 ```
 
-Genera 4 proveedores, 15 productos de macramé, 10 clientes y ~48 órdenes repartidas en el último
+Genera 4 proveedores, 15 productos de macramé, 10 clientes y ~58 órdenes repartidas en el último
 año, con pagos y estados variados, para que el dashboard muestre métricas reales.
 
 ### Variables de entorno requeridas
@@ -63,7 +63,7 @@ año, con pagos y estados variados, para que el dashboard muestre métricas real
 ### Modelo de IA
 
 ```bash
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:14b-instruct
 ollama pull nomic-embed-text
 ollama serve
 ```
@@ -79,7 +79,7 @@ Sin Ollama, **el resto del sistema funciona con normalidad**: sólo el chat qued
 [React SPA] ──REST/JWT──▶ [FastAPI] ──▶ [MongoDB]
                               │
                               ├──▶ [Servidor MCP "donata-mcp" (stdio, subproceso)]
-                              │         └──▶ [Ollama local 7B]
+                               │         └──▶ [Ollama local 14B]
                               └──▶ [Chroma + embeddings locales]
 ```
 
@@ -129,8 +129,8 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 | `.opencode/skills/openspec-*` | Flujos de [OpenSpec](https://github.com/Fission-AI/OpenSpec): explore, propose, apply, verify, sync, archive, update, onboard |
 | `.opencode/skills/ollama-local` | Reglas para trabajar con el modelo local (guardrails, confirmación, latencia) |
 | LangChain + `langchain-mcp-adapters` | Bucle de tool-calling acotado (6 pasos) sobre MCP |
-| Ollama `qwen2.5:7b-instruct` | Lenguaje natural, temperatura 0 |
-| `nomic-embed-text` / `all-MiniLM-L6-v2` | Embeddings locales para RAG sobre el manual operativo |
+| Ollama `qwen2.5:14b-instruct` | Lenguaje natural, temperatura 0 |
+| `sentence-transformers/all-MiniLM-L6-v2` | Embeddings locales para RAG sobre el manual operativo |
 
 ### 5.2 Orquestación de agentes
 
@@ -164,11 +164,11 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
 ### 5.5 Loops de autocorrección
 
-- **TDD:** 107 tests de pytest (ruff `E/F/I/UP/B` limpio) y 11 de Vitest; las invariantes de
+- **TDD:** 142 funciones de test (≈176 casos de pytest con parametrización, ruff `E/F/I/UP/B` limpio) y 45 de Vitest; las invariantes de
   negocio tienen test antes de tocar el código.
 - **Evaluación del chat:** `scripts/e2e_check.py` contra Ollama real (tools MCP + RAG) y prueba
   manual del flujo de propuesta → confirmación → ejecución.
-- **E2E de UI:** 4 tests de Playwright (guard de rutas, login, listado → detalle, descarga de CSV).
+- **E2E de UI:** 9 tests de Playwright (auth, guard de rutas, historial, exportación CSV, listado → detalle).
 - **Revisión adversarial y de seguridad** al cierre de cada hito, antes del merge.
 
 ---
@@ -177,7 +177,7 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
 Detalle: [`docs/MCP.md`](docs/MCP.md). Hay **dos planos**:
 
-**Plano A — dentro del producto.** El asistente CU07 consume **12 herramientas de negocio** a
+**Plano A — dentro del producto.** El asistente CU07 consume **16 herramientas de negocio** a
 través de un servidor MCP **propio** (`donata-mcp`, FastMCP, transporte stdio), levantado como
 subproceso del agente y consumido con `langchain-mcp-adapters`. Cada tool envuelve un `service`,
 así que el agente respeta exactamente las mismas reglas que la API (stock atómico, saldo derivado,
@@ -202,6 +202,11 @@ como subproceso vía `npx`; el único **remoto** es `github`.
 
 Cobertura: **1 servidor MCP propio en el producto** + **5 servidores MCP en el entorno de
 desarrollo (uno remoto)**.
+
+**Autenticación del MCP `github`.** El header usa `{env:GITHUB_PAT}`, que opencode resuelve desde
+el **entorno del proceso** (no desde el `.env` del proyecto): definí `GITHUB_PAT` como variable de
+usuario/sistema antes de arrancar opencode. Un token **fine-grained** limitado al repo (Contents +
+Pull requests) alcanza. Detalle en [`docs/MCP.md`](docs/MCP.md) §2.5 y `.env.example`.
 
 ---
 
@@ -244,13 +249,13 @@ donata-ia/
 ## 9. Tests
 
 ```bash
-docker compose run --rm --no-deps api sh -c "ruff check app tests; pytest -q"   # backend (107)
+docker compose run --rm --no-deps api sh -c "ruff check app tests; pytest -q"   # backend (~176 casos)
 docker compose run --rm --no-deps api python -m scripts.e2e_check               # chat real + RAG
 
-cd frontend && npm test              # Vitest (11)
+cd frontend && npm test              # Vitest (45)
 cd frontend && npm run build         # tsc + vite
 cd frontend && npm run lint          # eslint
-cd frontend && npx playwright test    # E2E (4, requiere backend arriba)
+cd frontend && npx playwright test    # E2E (9, requiere backend arriba)
 ```
 
 Cobertura: invariantes de negocio (stock atómico, saldo, descuentos, paridad export/listado),

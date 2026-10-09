@@ -12,7 +12,7 @@ description: >
 
 ## Regla que no se negocia
 
-**El modelo es local.** `qwen2.5:7b-instruct` (o `llama3.1:8b` / `mistral:7b`) servido por
+**El modelo es local.** `qwen2.5:14b-instruct` (o `qwen2.5:7b-instruct` / `llama3.1:8b` / `mistral:7b`) servido por
 Ollama en `localhost:11434`. No hay claves de API cloud, no hay `OPENAI_API_KEY`, no sale un
 solo dato del negocio de la máquina del dueño.
 
@@ -70,7 +70,7 @@ def crear_orden(
 
 ## System prompt: estructura, no volumen
 
-Un 7B en CPU necesita **secciones explícitas**. Un prompt largo y difuso produce
+Un modelo 14B en CPU necesita **secciones explícitas**. Un prompt largo y difuso produce
 comportamiento errático.
 
 Secciones, en este orden: **rol** → **contexto del negocio** → **reglas duras** (numeradas) →
@@ -101,13 +101,13 @@ La salida es texto libre, así que "anda" no es verificable. Hace falta un set d
 
 **El set de casos es la evidencia del TP.** Guardalo.
 
-Un 7B **no** va a acertar el 100%. El objetivo es que acierte en los flujos frecuentes y que
+Un modelo 14B **no** va a acertar el 100%. El objetivo es que acierte en los flujos frecuentes y que
 **no haga nada peligroso cuando se equivoca**. Priorizá la seguridad sobre la sofisticación.
 
 ## Ajuste de modelos: el problema real
 
-Los modelos 7B se comportan distinto en tool-calling. Cuando el modelo elija la tool
-equivocada, **antes de cambiar el prompt, probá otro modelo**. `qwen2.5:7b-instruct` es el
+Los modelos 14B se comportan distinto en tool-calling. Cuando el modelo elija la tool
+equivocada, **antes de cambiar el prompt, probá otro modelo**. `qwen2.5:14b-instruct` es el
 default porque es el que mejor sigue instrucciones en este tamaño; `llama3.1:8b` es la
 alternativa razonable.
 
@@ -115,7 +115,7 @@ Usá el MCP `sequential-thinking` para el diagnóstico cuando el fallo no es obv
 
 ## Rendimiento
 
-Un 7B en CPU es **lento**: esperá varios segundos por respuesta.
+Un 14B en CPU es **lento**: esperá varios segundos por respuesta.
 
 - La UI tiene que mostrar un estado de "pensando" y **no bloquear el resto de la app**.
 - Timeout configurable (`OLLAMA_TIMEOUT`, 60 s por defecto). Se corta el stream y se ofrece

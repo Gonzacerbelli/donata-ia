@@ -136,7 +136,7 @@ PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
 Detalle y configuración: [`docs/MCP.md`](docs/MCP.md). Hay **dos planos** de MCP:
 
-**Plano A — dentro del producto.** El asistente CU07 consume sus 12 herramientas de negocio a
+**Plano A — dentro del producto.** El asistente CU07 consume sus 16 herramientas de negocio a
 través de un servidor MCP **propio** (`donata-mcp`, FastMCP, stdio), levantado como subproceso y
 consumido con `langchain-mcp-adapters`. Cada tool envuelve un `service`, por lo que el agente
 respeta las mismas reglas que la API. Verificación E2E real:

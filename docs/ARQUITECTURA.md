@@ -240,7 +240,7 @@ POST /chat (router)
    └─ services/llm/assistant.py      guardrails + historial + validación de salida
         └─ services/llm/agent.py     bucle de tool-calling (ChatOllama)
              └─ MultiServerMCPClient (stdio)
-                  └─ mcp_server.py   donata-mcp — 12 tools en español
+                  └─ mcp_server.py   donata-mcp — 16 tools en español
                        └─ services/*  reglas de negocio (stock, ventas, clientes, reportes)
                               └─ repositories/*  →  MongoDB
    └─ services/llm/rag.py           consultar_documentacion → Chroma (embeddings locales)

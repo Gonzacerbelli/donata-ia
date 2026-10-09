@@ -42,7 +42,7 @@ de servidores MCP, en lugar de adivinar o de pedir que se le pegue el contenido.
 | **Implementación** | `backend/app/mcp_server.py` con **FastMCP** |
 | **Transporte** | `stdio` (el backend lo lanza como subproceso vía `langchain-mcp-adapters`) |
 | **Endpoint HTTP** | Ninguno: no se expone a la red, sólo al proceso del agente |
-| **Qué expone** | 12 herramientas de negocio en español que envuelven los **services** ya validados |
+| **Qué expone** | 16 herramientas de negocio en español que envuelven los **services** ya validados |
 
 **Rol en el producto.** Es la forma en que el agente CU07 obtiene sus *tools*: en vez de
 declarar funciones sueltas en el código del agente, el negocio se expone como un servidor MCP y
@@ -55,15 +55,19 @@ implementación.
 | Tool | Qué hace | Envuelve |
 |---|---|---|
 | `buscar_productos` | Lista/filtra el catálogo | `services/products` + `repositories/products` |
+| `listar_productos_a_reponer` | Productos en el stock mínimo o por debajo | `repositories/products` |
 | `buscar_productos_semantico` | Búsqueda semántica de productos | `services/llm/vector_store` (Chroma) |
 | `consultar_producto` | Ficha de un producto | `services/products` |
 | `consultar_precios` | Precio minorista/mayorista resuelto | `services/products` |
 | `listar_clientes` | Lista/filtra clientes | `services/clients` |
 | `crear_cliente` | Alta de cliente | `services/clients` |
 | `listar_ventas` | Lista/filtra ventas | `services/sales` |
+| `consultar_saldo_cliente` | Saldo derivado de un cliente (deuda, facturado, cobrado) | `repositories/sales` + `repositories/clients` |
+| `listar_clientes_pendientes` | Clientes con órdenes sin entregar y saldo pendiente | `repositories/sales` + `repositories/clients` |
 | `crear_venta` | Crea una venta (ítems mixtos, precio dual) | `services/sales` |
 | `registrar_pago` | Registra un pago | `services/sales` |
 | `cancelar_venta` | Cancela y restaura stock | `services/sales` + `services/stock` |
+| `reponer_stock` | Suma stock y/o actualiza el precio de venta | `services/stock` + `services/products` |
 | `resumen_negocio` | Agregados del dashboard | `services/reports` |
 | `consultar_documentacion` | Responde desde el manual (RAG) | `services/llm/rag` |
 
@@ -193,6 +197,28 @@ este proyecto, cada hito se integró por PR con merge squash (ver `docs/AI-ENGIN
 > **Este es el único servidor MCP puramente remoto** del proyecto. Los demás son paquetes de
 > terceros ejecutados localmente vía `npx`.
 
+**Autenticación con un PAT.** El header usa `{env:GITHUB_PAT}`: opencode sustituye la variable
+desde el **entorno del proceso**, no desde el `.env` del proyecto. Hay que definir `GITHUB_PAT`
+como variable de usuario/sistema **antes** de arrancar opencode (si el valor queda vacío, el
+header sale como `Bearer ` y GitHub responde `401`).
+
+```powershell
+# Windows (una sola vez; después reiniciar opencode)
+[Environment]::SetEnvironmentVariable("GITHUB_PAT","<token>","User")
+```
+
+```bash
+# Linux / macOS
+export GITHUB_PAT=<token>   # en el shell que lanza opencode
+```
+
+Scopes: un token **fine-grained** limitado a `Gonzacerbelli/donata-ia` (Contents + Pull requests)
+alcanza; un token clásico necesita el scope `repo`. No se necesitan permisos de más.
+
+> **Estado: Probado.** El servidor se usó de punta a punta en el hito de documentación MCP: creó
+> la rama, el commit y el pull request #17 sin salir del editor. Deja de ser "configuración
+> muerta" en el sentido de §6.
+
 ---
 
 ## 3. Configuración
@@ -242,7 +268,9 @@ La configuración vive en `opencode.json`, en el bloque `mcp`:
 
 - `command` **siempre** es un array de strings, nunca un string suelto.
 - `type` es obligatorio.
-- Los headers de servidores remotos soportan interpolación `{env:VAR}`.
+- Los headers de servidores remotos soportan interpolación `{env:VAR}`, resuelta contra el
+  **entorno del proceso** de opencode (no contra el `.env` del proyecto). Si la variable no
+  existe, se sustituye por cadena vacía.
 - **Después de modificar `opencode.json` hay que reiniciar opencode**: la configuración se lee
   una vez al arrancar y no se recarga en caliente.
 
@@ -253,8 +281,39 @@ node --version     # v18 o superior
 npx --version
 ```
 
+Para el servidor remoto `github`, además:
+
+```bash
+# debe devolver un valor no vacío al arrancar opencode
+echo $GITHUB_PAT        # Linux/macOS
+echo $env:GITHUB_PAT    # Windows PowerShell
+```
+
 La primera invocación de cada servidor descarga el paquete. Conviene ejecutar cada uno una vez
 **antes** de documentarlo como funcionando, para no documentar algo que nunca se probó.
+
+### 3.2 Arranque en frío (troubleshooting)
+
+`opencode` lanza cada servidor `local` como subproceso **al iniciar** y espera su handshake MCP con
+un timeout. Si un servidor **nunca se ejecutó antes**, el primer `npx -y` descarga el paquete y
+puede tardar más que ese timeout: `opencode` lo marca como caído y lo deja fuera de la sesión, sin
+reintentar en caliente. Los servidores ya cacheados levantan en ~1 s y no se ven afectados.
+
+Síntoma en el log de `opencode` (`~/.local/share/opencode/log/opencode.log`):
+
+```
+level=WARN message="server unavailable" key=context7 type=local status=failed
+```
+
+**Solución:** precalentar la caché de `npx` una vez y **reiniciar `opencode`** (la configuración se
+lee solo al arrancar):
+
+```bash
+npx -y @upstash/context7-mcp    # primera descarga; Ctrl+C al ver "running on stdio"
+```
+
+Con la caché tibia, `context7` vuelve a conectarse en el siguiente arranque. Es un artefacto del
+primer `npx`, no un fallo de la configuración.
 
 ---
 
@@ -274,7 +333,7 @@ La primera invocación de cada servidor descarga el paquete. Conviene ejecutar c
 | Servidor MCP #2 | `filesystem` | Externo (local) | Configurado |
 | Servidor MCP #3 | `playwright` | Externo (local) | Configurado |
 | Servidor MCP #4 | `sequential-thinking` | Externo (local) | Configurado |
-| Servidor MCP #5 | `github` | **Externo remoto** | Configurado |
+| Servidor MCP #5 | `github` | **Externo remoto** | **Probado** (rama + commit + PR #17) |
 
 **Cobertura:** 1 servidor MCP propio en la arquitectura del producto + 5 servidores MCP en el
 entorno de desarrollo, **uno de ellos remoto**. El requisito (≥ 2 servidores, ≥ 1 externo) queda

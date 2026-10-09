@@ -43,7 +43,7 @@ El chat SHALL admitir como máximo 20 envíos por usuario y minuto. Al excederlo
 
 ### Requirement: El asistente usa un modelo local y no servicios cloud
 
-El asistente SHALL responder con un modelo local servido por Ollama (`qwen2.5:7b-instruct` por defecto, ~7B, temperatura 0) y no SHALL enviar la información del negocio a ningún servicio externo ni usar APIs en la nube.
+El asistente SHALL responder con un modelo local servido por Ollama (`qwen2.5:14b-instruct` por defecto, 14B, temperatura 0) y no SHALL enviar la información del negocio a ningún servicio externo ni usar APIs en la nube.
 
 #### Scenario: Consulta de negocio
 

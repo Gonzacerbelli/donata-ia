@@ -9,7 +9,7 @@ context: |
   - docs/PLAN-IMPLEMENTACION.md: estado por fases (F0-F8).
   - docs/ARQUITECTURA.md y docs/adr/: decisiones técnicas.
   Stack: backend FastAPI + MongoDB + pytest + ruff en Docker; frontend React 19 + TypeScript estricto +
-  Vite + Tailwind v4 + TanStack Query + Vitest + Playwright; IA 100% local (Ollama qwen2.5:7b-instruct),
+  Vite + Tailwind v4 + TanStack Query + Vitest + Playwright; IA 100% local (Ollama qwen2.5:14b-instruct),
   tools MCP en español, JWT sin roles.
   Comandos de verificación:
   - Backend: docker compose run --rm --no-deps api sh -c 'ruff format app tests scripts; ruff check app tests scripts; python -m pytest -q'
