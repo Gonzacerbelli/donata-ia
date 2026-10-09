@@ -1,0 +1,49 @@
+schema: spec-driven
+
+context: |
+  Escribir TODOS los artefactos (proposal, specs, design, tasks) en español.
+  Fuentes de verdad del proyecto:
+  - docs/CASOS_DE_USO.md: los 10 casos de uso validados por el docente. NO modificar el documento;
+    las specs lo referencian y reflejan el estado real del sistema (as-built).
+  - AGENTS.md: reglas del repo y proceso (secciones 7, 9).
+  - docs/PLAN-IMPLEMENTACION.md: estado por fases (F0-F8).
+  - docs/ARQUITECTURA.md y docs/adr/: decisiones técnicas.
+  Stack: backend FastAPI + MongoDB + pytest + ruff en Docker; frontend React 19 + TypeScript estricto +
+  Vite + Tailwind v4 + TanStack Query + Vitest + Playwright; IA 100% local (Ollama qwen2.5:14b-instruct),
+  tools MCP en español, JWT sin roles.
+  Comandos de verificación:
+  - Backend: docker compose run --rm --no-deps api sh -c 'ruff format app tests scripts; ruff check app tests scripts; python -m pytest -q'
+  - Backend E2E IA: docker compose run --rm --no-deps api sh -c 'python -m scripts.e2e_check'
+  - Frontend: npm test; npx tsc --noEmit; npm run lint; npm run build; npx playwright test
+  Invariantes de negocio (aplican a todo diseño y tarea):
+  - Montos enteros en ARS; saldos siempre derivados de pagos, nunca persistidos.
+  - Stock siempre atómico con rollback total ante fallo parcial.
+  - Todo producto requiere proveedor; sin roles de usuario (solo usuario activo/inactivo).
+  - Ítems mixtos en órdenes (catálogo, libre o combinación).
+  - Exportación = listado con los filtros activos, nada más.
+  - Escrituras desde el chat IA siempre requieren confirmación humana previa.
+
+rules:
+  proposal:
+    - Alcance acotado y explícito; declarar siempre qué queda fuera (out of scope).
+    - Referenciar el CU de docs/CASOS_DE_USO.md cuando el cambio toque un caso de uso.
+    - No proponer cambios en docs/CASOS_DE_USO.md (entregable validado); documentar desvíos como pendientes.
+  specs:
+    - Requirements con escenarios Given/When/Then verificables con tests automatizados.
+    - Las specs describen el sistema tal como está construido (as-built); los desvíos respecto del
+      documento de CU se anotan como pendientes, no como requisitos falsos.
+  design:
+    - Cubrir modelo de datos, API, frontend, seguridad, casos borde e impacto en tests.
+    - Declarar cómo se verifican los invariantes de negocio en el diseño propuesto.
+  tasks:
+    - Tareas atómicas con criterio de terminado claro; checkboxes que se tachan al implementar.
+    - Backend con TDD; cada tarea deja la verificación verde (pytest/ruff o test/tsc/lint según aplique).
+
+operations:
+  apply:
+    guidance:
+      - Correr la verificación completa del stack afectado antes de marcar una tarea como terminada.
+      - "No commitear hasta que la verificación pase; mensajes de commit en español con formato type(scope) y resumen."
+  archive:
+    guidance:
+      - Resumir qué requisitos cambiaron en openspec/specs/ como resultado del archive.
