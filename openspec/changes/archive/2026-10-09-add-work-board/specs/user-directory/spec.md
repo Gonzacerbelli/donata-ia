@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Directorio de s�lo lectura de los usuarios activos del sistema, para asignar tarjetas de trabajo y
+Directorio de sólo lectura de los usuarios activos del sistema, para asignar tarjetas de trabajo y
 filtrar el tablero por usuario asignado, sin roles ni permisos.
 
 ## ADDED Requirements
@@ -10,7 +10,7 @@ filtrar el tablero por usuario asignado, sin roles ni permisos.
 ### Requirement: Listado de usuarios activos
 
 `GET /users` SHALL devolver los usuarios activos con su id, nombre y email, y SHALL exigir un JWT
-v�lido.
+válido.
 
 #### Scenario: Listado de activos
 
@@ -24,5 +24,5 @@ v�lido.
 
 #### Scenario: Sin token
 
-- **WHEN** se consulta `GET /users` sin un JWT v�lido
+- **WHEN** se consulta `GET /users` sin un JWT válido
 - **THEN** responde `401`

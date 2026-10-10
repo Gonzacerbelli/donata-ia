@@ -81,7 +81,7 @@ class SaleItemIn(BaseModel):
     @model_validator(mode="after")
     def _requires_product_or_description(self):
         if not self.product_id and not (self.description and self.description.strip()):
-            raise ValueError("Un �tem necesita product_id o description")
+            raise ValueError("Un ítem necesita product_id o description")
         return self
 
 
@@ -136,5 +136,5 @@ class CommentCreate(BaseModel):
     def _not_blank(cls, value: str) -> str:
         stripped = value.strip()
         if not stripped:
-            raise ValueError("El comentario no puede estar vac�o")
+            raise ValueError("El comentario no puede estar vacío")
         return stripped

@@ -74,9 +74,9 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
             if price is None:
                 price = _resolve_price(product, client_type)
         if price is None:
-            raise UnprocessableError("Falta el precio de un �tem")
+            raise UnprocessableError("Falta el precio de un ítem")
         if not description:
-            raise UnprocessableError("Falta la descripci�n de un �tem")
+            raise UnprocessableError("Falta la descripción de un ítem")
         subtotal += price * item.qty
         items.append(
             {
@@ -132,7 +132,7 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
                 db,
                 product_id,
                 qty,
-                reason="Reversi�n de venta fallida",
+                reason="Reversión de venta fallida",
                 ref_type="ajuste",
                 ref_id=sale.id,
             )
@@ -148,7 +148,7 @@ async def _cancel_sale(db: AsyncIOMotorDatabase, sale: Sale) -> None:
                 db,
                 it.product_id,
                 it.qty,
-                reason="Cancelaci�n de venta",
+                reason="Cancelación de venta",
                 ref_type="cancelacion",
                 ref_id=sale.id,
                 require_stock=False,
@@ -162,7 +162,7 @@ async def _reactivate_sale(db: AsyncIOMotorDatabase, sale: Sale) -> None:
                 db,
                 it.product_id,
                 -it.qty,
-                reason="Reactivaci�n de venta",
+                reason="Reactivación de venta",
                 ref_type="venta",
                 ref_id=sale.id,
             )

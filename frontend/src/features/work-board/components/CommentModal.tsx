@@ -46,7 +46,7 @@ export function CommentModal({ card, open, onClose }: CommentModalProps) {
     >
       <div className="flex flex-col gap-3">
         {card.comments.length === 0 && (
-          <p className="text-sm text-slate-500">Todav�a no hay comentarios.</p>
+          <p className="text-sm text-slate-500">Todavía no hay comentarios.</p>
         )}
         {card.comments.map((comment) => (
           <div key={comment.id} className="rounded-lg bg-slate-50 px-3 py-2">
@@ -67,7 +67,7 @@ export function CommentModal({ card, open, onClose }: CommentModalProps) {
           name="comment"
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Escrib� una nota."
+          placeholder="Escribí una nota…"
         />
       </div>
     </Modal>

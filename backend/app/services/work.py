@@ -79,7 +79,7 @@ async def update_work(db: AsyncIOMotorDatabase, sale_id: str, body: WorkItemUpda
     if updates.get("assigned_to") is not None:
         target = await users_repo.get_user(db, str(updates["assigned_to"]))
         if target is None or not target.active:
-            raise UnprocessableError("El usuario asignado no existe o est� inactivo")
+            raise UnprocessableError("El usuario asignado no existe o está inactivo")
         updates["assigned_to"] = valid_oid(str(updates["assigned_to"]))
     item = await work_repo.upsert(db, sale_id, updates)
     assert item is not None
