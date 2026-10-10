@@ -38,6 +38,12 @@ INDEXES: dict[str, list[dict]] = {
         {"keys": [("user_id", 1), ("key", 1)], "unique": True},
         {"keys": [("user_id", 1)]},
     ],
+    "work_items": [
+        {"keys": [("sale_id", 1)], "unique": True},
+        {"keys": [("status", 1)]},
+        {"keys": [("priority", 1)]},
+        {"keys": [("assigned_to", 1)]},
+    ],
 }
 
 

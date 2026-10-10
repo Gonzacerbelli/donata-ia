@@ -1,9 +1,13 @@
 from datetime import datetime
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, computed_field
 
 from .base import BaseDocument, ObjIdStr, utcnow
+
+WorkStatus = Literal["pendiente", "en_curso", "bloqueado", "terminado"]
+WorkPriority = Literal["alta", "media", "baja"]
 
 
 class User(BaseDocument):
@@ -109,6 +113,24 @@ class StockMove(BaseDocument):
     ref_type: Literal["venta", "cancelacion", "compra", "ajuste"] | None = None
     ref_id: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class WorkComment(BaseModel):
+    id: str = Field(default_factory=lambda: uuid4().hex)
+    author_id: ObjIdStr
+    author_name: str
+    text: str
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class WorkItem(BaseDocument):
+    sale_id: ObjIdStr
+    status: WorkStatus = "pendiente"
+    priority: WorkPriority = "media"
+    assigned_to: ObjIdStr | None = None
+    comments: list[WorkComment] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class ChatThread(BaseDocument):

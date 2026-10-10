@@ -8,7 +8,8 @@ const items = [
   { to: paths.providers, label: "Proveedores" },
   { to: paths.products, label: "Productos" },
   { to: paths.clients, label: "Clientes" },
-  { to: paths.orders, label: "Órdenes" },
+  { to: paths.orders, label: "�rdenes" },
+  { to: paths.work, label: "Trabajo" },
 ];
 
 export function Sidebar() {
@@ -17,7 +18,7 @@ export function Sidebar() {
       <div className="px-3 pb-6">
         <span className="text-lg font-semibold text-brand-700">Donata IA</span>
       </div>
-      <nav className="flex flex-col gap-1" aria-label="Navegación principal">
+      <nav className="flex flex-col gap-1" aria-label="Navegaci�n principal">
         {items.map((item) => (
           <NavLink
             key={item.to}

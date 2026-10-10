@@ -15,6 +15,12 @@ class UserOut(BaseModel):
     picture: str | None = None
 
 
+class UserSummary(BaseModel):
+    id: str
+    name: str | None = None
+    email: str | None = None
+
+
 class GoogleAuthStart(BaseModel):
     url: str
 

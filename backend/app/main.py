@@ -19,6 +19,8 @@ from .routers import providers as providers_router
 from .routers import reports as reports_router
 from .routers import sales as sales_router
 from .routers import stock as stock_router
+from .routers import users as users_router
+from .routers import work as work_router
 from .services.llm import vector_store
 
 
@@ -56,6 +58,8 @@ app.include_router(providers_router.router)
 app.include_router(products_router.router)
 app.include_router(clients_router.router)
 app.include_router(sales_router.router)
+app.include_router(work_router.router)
+app.include_router(users_router.router)
 app.include_router(stock_router.router)
 app.include_router(reports_router.router)
 app.include_router(exports_router.router)
@@ -67,7 +71,7 @@ async def _check_ollama() -> bool:
         async with httpx.AsyncClient(timeout=2.0) as client:
             response = await client.get(f"{settings.ollama_base_url}/api/tags")
         return response.status_code == 200
-    except Exception:  # pragma: no cover - health tolerante a caídas de IA
+    except Exception:  # pragma: no cover - health tolerante a ca�das de IA
         return False
 
 

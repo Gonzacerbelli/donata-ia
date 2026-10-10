@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..models.base import ObjIdStr
 
@@ -81,7 +81,7 @@ class SaleItemIn(BaseModel):
     @model_validator(mode="after")
     def _requires_product_or_description(self):
         if not self.product_id and not (self.description and self.description.strip()):
-            raise ValueError("Un ítem necesita product_id o description")
+            raise ValueError("Un �tem necesita product_id o description")
         return self
 
 
@@ -120,3 +120,21 @@ class StockAdjust(BaseModel):
     product_id: ObjIdStr
     quantity: int
     reason: str = Field(min_length=1, max_length=200)
+
+
+class WorkItemUpdate(BaseModel):
+    status: Literal["pendiente", "en_curso", "bloqueado", "terminado"] | None = None
+    priority: Literal["alta", "media", "baja"] | None = None
+    assigned_to: ObjIdStr | None = None
+
+
+class CommentCreate(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("text")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("El comentario no puede estar vac�o")
+        return stripped
