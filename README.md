@@ -1,23 +1,23 @@
 # Donata IA
 
-Sistema web de gestión para **DonataDeco**, emprendimiento de macramé y decoración del hogar.
-Reemplaza la operatoria en planillas Excel por una aplicación unificada de ventas, stock,
-pedidos, proveedores y envíos, con un asistente de IA local.
+Sistema web de gesti�n para **DonataDeco**, emprendimiento de macram� y decoraci�n del hogar.
+Reemplaza la operatoria en planillas Excel por una aplicaci�n unificada de ventas, stock,
+pedidos, proveedores y env�os, con un asistente de IA local.
 
-**Trabajo Práctico Integrador** — Diplomatura en Desarrollo y Arquitectura de Agentes de IA.
+**Trabajo Pr�ctico Integrador** - Diplomatura en Desarrollo y Arquitectura de Agentes de IA.
 
 ---
 
 ## 1. Stack
 
-| Capa | Tecnología |
+| Capa | Tecnolog�a |
 |---|---|
-| Frontend | React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query · React Router |
-| Backend | FastAPI · Pydantic v2 · Motor (MongoDB asíncrono) · PyJWT |
+| Frontend | React 19 � TypeScript � Vite � Tailwind CSS � TanStack Query � React Router |
+| Backend | FastAPI � Pydantic v2 � Motor (MongoDB as�ncrono) � PyJWT |
 | Base de datos | MongoDB (local en Docker o Atlas) |
-| IA | LangChain + MCP (`langchain-mcp-adapters`) + modelo local 14B vía Ollama |
-| Infraestructura | Docker · Docker Compose |
-| Tests | pytest · Vitest · Playwright |
+| IA | LangChain + MCP (`langchain-mcp-adapters`) + modelo local 14B v�a Ollama |
+| Infraestructura | Docker � Docker Compose |
+| Tests | pytest � Vitest � Playwright |
 
 ---
 
@@ -34,30 +34,30 @@ docker compose up --build
 
 | Servicio | URL |
 |---|---|
-| Aplicación web | http://localhost:5173 |
-| Documentación API | http://localhost:8000/docs |
+| Aplicaci�n web | http://localhost:5173 |
+| Documentaci�n API | http://localhost:8000/docs |
 | Health check | http://localhost:8000/health |
 
 Login local de emergencia (habilitado por `ENABLE_LOCAL_LOGIN=true`): `admin` / `cambiar-esta-clave`
-— **cambiarlo en `.env`** antes de exponer el servicio.
+- **cambiarlo en `.env`** antes de exponer el servicio.
 
-### Datos de demostración
+### Datos de demostraci�n
 
 ```bash
 docker compose run --rm --no-deps api python -m scripts.seed_demo
 ```
 
-Genera 4 proveedores, 15 productos de macramé, 10 clientes y ~58 órdenes repartidas en el último
-año, con pagos y estados variados, para que el dashboard muestre métricas reales.
+Genera 4 proveedores, 15 productos de macram�, 10 clientes y ~58 �rdenes repartidas en el �ltimo
+a�o, con pagos y estados variados, para que el dashboard muestre m�tricas reales.
 
 ### Variables de entorno requeridas
 
-| Variable | Para qué |
+| Variable | Para qu� |
 |---|---|
 | `MONGO_URI` | Connection string de MongoDB |
 | `JWT_SECRET` | Firma de los tokens. Generar: `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth 2.0 (CU01). Opcional |
-| `CORS_ORIGINS` | Lista blanca de orígenes del frontend |
+| `CORS_ORIGINS` | Lista blanca de or�genes del frontend |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Asistente IA local |
 
 ### Modelo de IA
@@ -68,145 +68,158 @@ ollama pull nomic-embed-text
 ollama serve
 ```
 
-Sin Ollama, **el resto del sistema funciona con normalidad**: sólo el chat queda deshabilitado
-(responde `503` y la UI lo informa) y las búsquedas semánticas degradan a búsqueda por texto.
+Sin Ollama, **el resto del sistema funciona con normalidad**: s�lo el chat queda deshabilitado
+(responde `503` y la UI lo informa) y las b�squedas sem�nticas degradan a b�squeda por texto.
 
 ---
 
 ## 3. Arquitectura
 
 ```
-[React SPA] ──REST/JWT──▶ [FastAPI] ──▶ [MongoDB]
-                              │
-                              ├──▶ [Servidor MCP "donata-mcp" (stdio, subproceso)]
-                               │         └──▶ [Ollama local 14B]
-                              └──▶ [Chroma + embeddings locales]
+[React SPA] ??REST/JWT??? [FastAPI] ??? [MongoDB]
+                              ?
+                              ???? [Servidor MCP "donata-mcp" (stdio, subproceso)]
+                               ?         ???? [Ollama local 14B]
+                              ???? [Chroma + embeddings locales]
 ```
 
-Decisiones técnicas y sus porqués: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+Decisiones t�cnicas y sus porqu�s: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
 
 ---
 
 ## 4. Los 10 casos de uso
 
-Especificación completa: [`docs/CASOS_DE_USO.md`](docs/CASOS_DE_USO.md) ·
+Especificaci�n completa: [`docs/CASOS_DE_USO.md`](docs/CASOS_DE_USO.md) �
 PDF: [`docs/CASOS_DE_USO.pdf`](docs/CASOS_DE_USO.pdf)
 
-| ID | Caso de uso | Módulos | Estado |
+| ID | Caso de uso | M�dulos | Estado |
 |---|---|---|---|
-| CU01 | Autenticación OAuth 2.0 con Google (+ login local) | Front + Back | ✅ |
-| CU02 | Home / Dashboard con métricas y filtros por fecha | Front + Back | ✅ |
-| CU03 | ABM de Productos | Front + Back | ✅ |
-| CU04 | ABM de Clientes | Front + Back | ✅ |
-| CU05 | ABM de Órdenes / Pedidos (con pagos) | Front + Back | ✅ |
-| CU06 | ABM de Proveedores | Front + Back | ✅ |
-| CU07 | Chat IA para operar el negocio en lenguaje natural | Front + Back + IA | ✅ |
-| CU08 | Manejo de Stock de Productos | Front + Back | ✅ |
-| CU09 | Notificaciones en plataforma | Front + Back | ✅ |
-| CU10 | Exportación CSV / Excel respetando filtros de pantalla | Front + Back | ✅ |
+| CU01 | Autenticaci�n OAuth 2.0 con Google (+ login local) | Front + Back | ? |
+| CU02 | Home / Dashboard con m�tricas y filtros por fecha | Front + Back | ? |
+| CU03 | ABM de Productos | Front + Back | ? |
+| CU04 | ABM de Clientes | Front + Back | ? |
+| CU05 | ABM de �rdenes / Pedidos (con pagos) | Front + Back | ? |
+| CU06 | ABM de Proveedores | Front + Back | ? |
+| CU07 | Chat IA para operar el negocio en lenguaje natural | Front + Back + IA | ? |
+| CU08 | Manejo de Stock de Productos | Front + Back | ? |
+| CU09 | Notificaciones en plataforma | Front + Back | ? |
+| CU10 | Exportaci�n CSV / Excel respetando filtros de pantalla | Front + Back | ? |
 
-- **Dashboard:** KPIs de ventas, órdenes, cobrado y por cobrar con rango de fechas; productos más
-  vendidos, stock bajo y valor de inventario. Cada KPI navega al módulo con los filtros aplicados.
-- **Órdenes:** alta con ítems mixtos (catálogo + ítem libre), detalle, pagos, cambio de estado y
-  baja con confirmación; el backend bloquea la baja si hay pagos.
-- **Stock:** sólo se modifica desde CU08 (ajuste con motivo) o por venta; todo movimiento queda
+- **Dashboard:** KPIs de ventas, �rdenes, cobrado y por cobrar con rango de fechas; productos m�s
+  vendidos, stock bajo y valor de inventario. Cada KPI navega al m�dulo con los filtros aplicados.
+- **�rdenes:** alta con �tems mixtos (cat�logo + �tem libre), detalle, pagos, cambio de estado y
+  baja con confirmaci�n; el backend bloquea la baja si hay pagos.
+- **Stock:** s�lo se modifica desde CU08 (ajuste con motivo) o por venta; todo movimiento queda
   auditado en `stock_moves`.
-- **Exportación:** los botones CSV/Excel envían exactamente los filtros activos de la pantalla.
-- **Chat:** el asistente **no ejecuta escrituras por su cuenta** (ver §7).
+- **Exportaci�n:** los botones CSV/Excel env�an exactamente los filtros activos de la pantalla.
+- **Chat:** el asistente **no ejecuta escrituras por su cuenta** (ver �7).
+
+### M�dulo "Trabajo" (extensi�n fuera de los 10 CU)
+
+Tablero kanban de las �rdenes **no entregadas ni canceladas** (`entregado` expulsa la tarjeta):
+estado de trabajo (`pendiente`/`en_curso`/`bloqueado`/`terminado`), prioridad, asignaci�n a
+cualquier usuario activo, comentarios append-only, filtros y orden por fecha, y drag & drop
+(`@dnd-kit/core`). Vive en `/trabajo` y se apoya en CU05 **sin modificar la orden**: la colecci�n
+`work_items` es 1:1 con `sales` y se crea por *upsert*; cambiarla no altera el estado de cumplimiento,
+los pagos ni el stock. Al marcar la orden `entregado` su tarjeta pasa a `terminado` autom�ticamente
+(y vuelve a `pendiente` si se reabre); la regla es unidireccional, marcar una tarjeta `terminado`
+jam�s entrega la orden, y las tarjetas de �rdenes entregadas/canceladas quedan congeladas (`404`).
+Endpoints: `GET /work-items`, `PATCH /work-items/{sale_id}`, `POST /work-items/{sale_id}/comments`
+y `GET /users`. No se toca `docs/CASOS_DE_USO.md`.
 
 ---
 
 ## 5. AI Engineering
 
-> Resumen. El detalle completo está en [`docs/AI-ENGINEERING.md`](docs/AI-ENGINEERING.md).
+> Resumen. El detalle completo est� en [`docs/AI-ENGINEERING.md`](docs/AI-ENGINEERING.md).
 
-### 5.1 Herramientas y configuración
+### 5.1 Herramientas y configuraci�n
 
 | Herramienta | Rol |
 |---|---|
 | `opencode` + `opencode.json` | CLI de agentes: 5 subagentes, 9 comandos, 10 skills y 6 servidores MCP |
-| `.opencode/agent/` | backend · frontend · ai-engineer · reviewer · security-auditor |
+| `.opencode/agent/` | backend � frontend � ai-engineer � reviewer � security-auditor |
 | `.opencode/skills/openspec-*` | Flujos de [OpenSpec](https://github.com/Fission-AI/OpenSpec): explore, propose, apply, verify, sync, archive, update, onboard |
-| `.opencode/skills/ollama-local` | Reglas para trabajar con el modelo local (guardrails, confirmación, latencia) |
+| `.opencode/skills/ollama-local` | Reglas para trabajar con el modelo local (guardrails, confirmaci�n, latencia) |
 | LangChain + `langchain-mcp-adapters` | Bucle de tool-calling acotado (6 pasos) sobre MCP |
 | Ollama `qwen2.5:14b-instruct` | Lenguaje natural, temperatura 0 |
 | `sentence-transformers/all-MiniLM-L6-v2` | Embeddings locales para RAG sobre el manual operativo |
 
-### 5.2 Orquestación de agentes
+### 5.2 Orquestaci�n de agentes
 
 | Agente | Rol | Delega en |
 |---|---|---|
-| OpenSpec (`openspec-*`) | Dirige el ciclo spec → código: propone, implementa por tareas y archiva | `/opsx-explore` · `/opsx-propose` · `/opsx-apply` · `/opsx-archive` |
+| OpenSpec (`openspec-*`) | Dirige el ciclo spec ? c�digo: propone, implementa por tareas y archiva | `/opsx-explore` � `/opsx-propose` � `/opsx-apply` � `/opsx-archive` |
 | backend-engineer / frontend-engineer | Implementan y testean | `/opsx-apply` |
-| ai-engineer | Ajusta prompt, tools y evaluación del modelo | chat del producto |
-| reviewer · security-auditor | Revisión adversarial y checklist de seguridad | `/opsx-apply` + `/opsx-verify` |
+| ai-engineer | Ajusta prompt, tools y evaluaci�n del modelo | chat del producto |
+| reviewer � security-auditor | Revisi�n adversarial y checklist de seguridad | `/opsx-apply` + `/opsx-verify` |
 
 ### 5.3 Prompts clave
 
-1. **System prompt del agente:** define idioma, "nunca inventes datos", pesos enteros y — el que
-   cambió el comportamiento — *"las herramientas de escritura no están disponibles: usá
-   `proponer_accion` y esperá la confirmación en pantalla"*.
-2. **Prompt de investigación (hoy `/opsx-explore`):** pedir leer el legado antes de diseñar eliminó
-   reinventar reglas ya probadas (stock atómico, saldo derivado).
-3. **Revisión adversarial:** "buscá invariantes rotas, casos borde y errores que el test no cubre"
+1. **System prompt del agente:** define idioma, "nunca inventes datos", pesos enteros y - el que
+   cambi� el comportamiento - *"las herramientas de escritura no est�n disponibles: us�
+   `proponer_accion` y esper� la confirmaci�n en pantalla"*.
+2. **Prompt de investigaci�n (hoy `/opsx-explore`):** pedir leer el legado antes de dise�ar elimin�
+   reinventar reglas ya probadas (stock at�mico, saldo derivado).
+3. **Revisi�n adversarial:** "busc� invariantes rotas, casos borde y errores que el test no cubre"
    hizo aparecer los fallos de fechas UTC y de tipos del formulario.
 
 ### 5.4 Iteraciones
 
-- `formatDate` parseaba fechas sin hora como UTC y retrocedía un día al formatear en Buenos Aires
-  → detectado con test, corregido con manejo determinista del patrón.
-- El primer build de F6 falló por un hook mal nombrado y un `onSubmit` desalineado → se separó el
+- `formatDate` parseaba fechas sin hora como UTC y retroced�a un d�a al formatear en Buenos Aires
+  ? detectado con test, corregido con manejo determinista del patr�n.
+- El primer build de F6 fall� por un hook mal nombrado y un `onSubmit` desalineado ? se separ� el
   payload del formulario del modelo de dominio (`ProductFormOutput`).
-- `proponer_accion` declaraba `argumentos_json: str` y el modelo mandaba objeto → validación de
-  Pydantic fallaba y la propuesta se perdía → se acepta `dict | str` y se normaliza.
-- La exportación no puede ser un `<a href>` porque el token va en el header `Authorization` →
+- `proponer_accion` declaraba `argumentos_json: str` y el modelo mandaba objeto ? validaci�n de
+  Pydantic fallaba y la propuesta se perd�a ? se acepta `dict | str` y se normaliza.
+- La exportaci�n no puede ser un `<a href>` porque el token va en el header `Authorization` ?
   `GET` con `responseType: "blob"` + `URL.createObjectURL`.
 
-### 5.5 Loops de autocorrección
+### 5.5 Loops de autocorrecci�n
 
-- **TDD:** 142 funciones de test (≈176 casos de pytest con parametrización, ruff `E/F/I/UP/B` limpio) y 45 de Vitest; las invariantes de
-  negocio tienen test antes de tocar el código.
-- **Evaluación del chat:** `scripts/e2e_check.py` contra Ollama real (tools MCP + RAG) y prueba
-  manual del flujo de propuesta → confirmación → ejecución.
-- **E2E de UI:** 9 tests de Playwright (auth, guard de rutas, historial, exportación CSV, listado → detalle).
-- **Revisión adversarial y de seguridad** al cierre de cada hito, antes del merge.
+- **TDD:** 142 funciones de test (220 casos de pytest con parametrizaci�n, ruff `E/F/I/UP/B` limpio) y 54 de Vitest; las invariantes de
+  negocio tienen test antes de tocar el c�digo.
+- **Evaluaci�n del chat:** `scripts/e2e_check.py` contra Ollama real (tools MCP + RAG) y prueba
+  manual del flujo de propuesta ? confirmaci�n ? ejecuci�n.
+- **E2E de UI:** 10 tests de Playwright (auth, guard de rutas, historial, exportaci�n CSV, listado ? detalle, tablero de trabajo).
+- **Revisi�n adversarial y de seguridad** al cierre de cada hito, antes del merge.
 
 ---
 
-## 6. MCP — Model Context Protocol
+## 6. MCP - Model Context Protocol
 
 Detalle: [`docs/MCP.md`](docs/MCP.md). Hay **dos planos**:
 
-**Plano A — dentro del producto.** El asistente CU07 consume **16 herramientas de negocio** a
-través de un servidor MCP **propio** (`donata-mcp`, FastMCP, transporte stdio), levantado como
+**Plano A - dentro del producto.** El asistente CU07 consume **16 herramientas de negocio** a
+trav�s de un servidor MCP **propio** (`donata-mcp`, FastMCP, transporte stdio), levantado como
 subproceso del agente y consumido con `langchain-mcp-adapters`. Cada tool envuelve un `service`,
-así que el agente respeta exactamente las mismas reglas que la API (stock atómico, saldo derivado,
-montos enteros). Verificación E2E real:
+as� que el agente respeta exactamente las mismas reglas que la API (stock at�mico, saldo derivado,
+montos enteros). Verificaci�n E2E real:
 
 ```bash
 docker compose run --rm --no-deps api python -m scripts.e2e_check
 ```
 
-**Plano B — en el entorno de desarrollo** (bloque `mcp` de [`opencode.json`](opencode.json)):
+**Plano B - en el entorno de desarrollo** (bloque `mcp` de [`opencode.json`](opencode.json)):
 
-| Servidor | Tipo | Configuración | Rol en el desarrollo |
+| Servidor | Tipo | Configuraci�n | Rol en el desarrollo |
 |---|---|---|---|
-| `context7` | local (externo) | `["npx","-y","@upstash/context7-mcp"]` | Documentación versionada de librerías |
+| `context7` | local (externo) | `["npx","-y","@upstash/context7-mcp"]` | Documentaci�n versionada de librer�as |
 | `filesystem` | local (externo) | `["npx","-y","@modelcontextprotocol/server-filesystem", <repo heredado>, <repo actual>]` | Acceso al sistema heredado a portar |
-| `playwright` | local (externo) | `["npx","-y","@playwright/mcp"]` + `BROWSER=chromium` | Verificación de la UI en navegador real |
+| `playwright` | local (externo) | `["npx","-y","@playwright/mcp"]` + `BROWSER=chromium` | Verificaci�n de la UI en navegador real |
 | `sequential-thinking` | local (externo) | `["npx","-y","@modelcontextprotocol/server-sequential-thinking"]` | Razonamiento estructurado para decisiones complejas |
 | `github` | **remoto** | `url: https://api.githubcopilot.com/mcp/`, header `Authorization: Bearer {env:GITHUB_PAT}` | Rama + PR + merge de cada hito |
 
-Configuración completa y notas: [`docs/MCP.md`](docs/MCP.md) §3. Los servidores `local` corren
-como subproceso vía `npx`; el único **remoto** es `github`.
+Configuraci�n completa y notas: [`docs/MCP.md`](docs/MCP.md) �3. Los servidores `local` corren
+como subproceso v�a `npx`; el �nico **remoto** es `github`.
 
 Cobertura: **1 servidor MCP propio en el producto** + **5 servidores MCP en el entorno de
 desarrollo (uno remoto)**.
 
-**Autenticación del MCP `github`.** El header usa `{env:GITHUB_PAT}`, que opencode resuelve desde
-el **entorno del proceso** (no desde el `.env` del proyecto): definí `GITHUB_PAT` como variable de
+**Autenticaci�n del MCP `github`.** El header usa `{env:GITHUB_PAT}`, que opencode resuelve desde
+el **entorno del proceso** (no desde el `.env` del proyecto): defin� `GITHUB_PAT` como variable de
 usuario/sistema antes de arrancar opencode. Un token **fine-grained** limitado al repo (Contents +
-Pull requests) alcanza. Detalle en [`docs/MCP.md`](docs/MCP.md) §2.5 y `.env.example`.
+Pull requests) alcanza. Detalle en [`docs/MCP.md`](docs/MCP.md) �2.5 y `.env.example`.
 
 ---
 
@@ -214,18 +227,18 @@ Pull requests) alcanza. Detalle en [`docs/MCP.md`](docs/MCP.md) §2.5 y `.env.ex
 
 Modelo de amenazas y checklist verificable: [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md)
 
-- Autenticación JWT en todos los endpoints no públicos; token ausente o inválido → `401`,
-  usuario inactivo → `403`.
-- Sin roles: la autorización es "¿el JWT es válido y la cuenta está activa?".
-- CORS con lista blanca explícita (nunca `*` con credenciales) y verificado por request.
+- Autenticaci�n JWT en todos los endpoints no p�blicos; token ausente o inv�lido ? `401`,
+  usuario inactivo ? `403`.
+- Sin roles: la autorizaci�n es "�el JWT es v�lido y la cuenta est� activa?".
+- CORS con lista blanca expl�cita (nunca `*` con credenciales) y verificado por request.
 - Rate limiting propio por endpoint con `429` + `Retry-After`; la UI respeta el conteo regresivo.
 - Headers de seguridad en cada respuesta (`nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`).
-- Validación estricta de entrada; el cliente nunca ve stack traces ni nombres internos.
+- Validaci�n estricta de entrada; el cliente nunca ve stack traces ni nombres internos.
 - **El asistente IA no tiene escrituras disponibles**: las 4 tools de escritura
   (`crear_cliente`, `crear_venta`, `registrar_pago`, `cancelar_venta`) no se le exponen; el modelo
-  sólo puede *proponer* una acción y la UI pide confirmación explícita antes de ejecutarla.
+  s�lo puede *proponer* una acci�n y la UI pide confirmaci�n expl�cita antes de ejecutarla.
 - El token viaja en el header `Authorization`, nunca en la URL.
-- Todo el cómputo es local (Ollama + embeddings): los datos del negocio no salen de la máquina.
+- Todo el c�mputo es local (Ollama + embeddings): los datos del negocio no salen de la m�quina.
 
 ---
 
@@ -233,15 +246,15 @@ Modelo de amenazas y checklist verificable: [`docs/SEGURIDAD.md`](docs/SEGURIDAD
 
 ```
 donata-ia/
-├── backend/          FastAPI: routers, services, repositories, MCP, tests
-│   └── scripts/      seed_demo, e2e_check, ingest_kb
-├── frontend/         React: features (auth, dashboard, providers, products,
-│                     clients, orders, notifications, chat), components, e2e/
-├── docs/             CASOS_DE_USO, ARQUITECTURA, PLAN, SEGURIDAD, MCP, bitácora
-├── openspec/         Specs as-built y propuestas de cambios (OpenSpec)
-├── scripts/          Utilidades (md2pdf)
-├── AGENTS.md         Contexto del proyecto para agentes de IA
-└── opencode.json     Configuración de agentes, comandos y MCP
+??? backend/          FastAPI: routers, services, repositories, MCP, tests
+?   ??? scripts/      seed_demo, e2e_check, ingest_kb
+??? frontend/         React: features (auth, dashboard, providers, products,
+?                     clients, orders, notifications, chat, work-board), components, e2e/
+??? docs/             CASOS_DE_USO, ARQUITECTURA, PLAN, SEGURIDAD, MCP, bit�cora
+??? openspec/         Specs as-built y propuestas de cambios (OpenSpec)
+??? scripts/          Utilidades (md2pdf)
+??? AGENTS.md         Contexto del proyecto para agentes de IA
+??? opencode.json     Configuraci�n de agentes, comandos y MCP
 ```
 
 ---
@@ -252,27 +265,27 @@ donata-ia/
 docker compose run --rm --no-deps api sh -c "ruff check app tests; pytest -q"   # backend (~176 casos)
 docker compose run --rm --no-deps api python -m scripts.e2e_check               # chat real + RAG
 
-cd frontend && npm test              # Vitest (45)
+cd frontend && npm test              # Vitest (54)
 cd frontend && npm run build         # tsc + vite
 cd frontend && npm run lint          # eslint
-cd frontend && npx playwright test    # E2E (9, requiere backend arriba)
+cd frontend && npx playwright test    # E2E (10, requiere backend arriba)
 ```
 
-Cobertura: invariantes de negocio (stock atómico, saldo, descuentos, paridad export/listado),
-seguridad (401/403/409/422/429, CORS, headers), notificaciones, RAG y el flujo de confirmación de
-acciones del chat. A mano se validó el modelo real con Ollama y la descarga de exportaciones en
+Cobertura: invariantes de negocio (stock at�mico, saldo, descuentos, paridad export/listado),
+seguridad (401/403/409/422/429, CORS, headers), notificaciones, RAG y el flujo de confirmaci�n de
+acciones del chat. A mano se valid� el modelo real con Ollama y la descarga de exportaciones en
 navegador.
 
 ---
 
-## 10. Documentación
+## 10. Documentaci�n
 
-| Documento | Para qué |
+| Documento | Para qu� |
 |---|---|
 | [`docs/CASOS_DE_USO.md`](docs/CASOS_DE_USO.md) | Fuente de verdad funcional |
 | [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Capas, modelo de datos, decisiones |
-| [`docs/PLAN-IMPLEMENTACION.md`](docs/PLAN-IMPLEMENTACION.md) | Fases y estado (F0–F8) |
+| [`docs/PLAN-IMPLEMENTACION.md`](docs/PLAN-IMPLEMENTACION.md) | Fases y estado (F0-F8) |
 | [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) | Modelo de amenazas y checklist verificado |
-| [`docs/AI-ENGINEERING.md`](docs/AI-ENGINEERING.md) | Bitácora del proceso (entregable) |
+| [`docs/AI-ENGINEERING.md`](docs/AI-ENGINEERING.md) | Bit�cora del proceso (entregable) |
 | [`docs/MCP.md`](docs/MCP.md) | Servidores MCP (entregable) |
 | [`AGENTS.md`](AGENTS.md) | Contexto del proyecto para agentes de IA |

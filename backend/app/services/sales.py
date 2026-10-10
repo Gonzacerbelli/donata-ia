@@ -14,6 +14,7 @@ from ..repositories import sales as sales_repo
 from ..repositories.base import valid_oid
 from ..schemas.entities import PaymentCreate, SaleCreate, SaleUpdate
 from . import stock as stock_service
+from . import work as work_service
 
 
 def _resolve_price(product, client_type: str) -> int | None:
@@ -73,9 +74,9 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
             if price is None:
                 price = _resolve_price(product, client_type)
         if price is None:
-            raise UnprocessableError("Falta el precio de un ítem")
+            raise UnprocessableError("Falta el precio de un �tem")
         if not description:
-            raise UnprocessableError("Falta la descripción de un ítem")
+            raise UnprocessableError("Falta la descripci�n de un �tem")
         subtotal += price * item.qty
         items.append(
             {
@@ -131,7 +132,7 @@ async def create_sale(db: AsyncIOMotorDatabase, body: SaleCreate) -> Sale:
                 db,
                 product_id,
                 qty,
-                reason="Reversión de venta fallida",
+                reason="Reversi�n de venta fallida",
                 ref_type="ajuste",
                 ref_id=sale.id,
             )
@@ -147,7 +148,7 @@ async def _cancel_sale(db: AsyncIOMotorDatabase, sale: Sale) -> None:
                 db,
                 it.product_id,
                 it.qty,
-                reason="Cancelación de venta",
+                reason="Cancelaci�n de venta",
                 ref_type="cancelacion",
                 ref_id=sale.id,
                 require_stock=False,
@@ -161,7 +162,7 @@ async def _reactivate_sale(db: AsyncIOMotorDatabase, sale: Sale) -> None:
                 db,
                 it.product_id,
                 -it.qty,
-                reason="Reactivación de venta",
+                reason="Reactivaci�n de venta",
                 ref_type="venta",
                 ref_id=sale.id,
             )
@@ -207,6 +208,11 @@ async def update_sale(db: AsyncIOMotorDatabase, sale_id: str, body: SaleUpdate) 
     updates["updated_at"] = utcnow()
     updated = await sales_repo.update_sale(db, sale_id, updates)
     assert updated is not None
+    if body.status is not None and body.status != sale.status:
+        if body.status == "entregado":
+            await work_service.mark_delivered(db, sale_id)
+        elif sale.status == "entregado":
+            await work_service.mark_reopened(db, sale_id)
     return updated
 
 

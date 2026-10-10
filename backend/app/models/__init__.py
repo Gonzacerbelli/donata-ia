@@ -11,6 +11,10 @@ from .domain import (
     StockMove,
     ToolCall,
     User,
+    WorkComment,
+    WorkItem,
+    WorkPriority,
+    WorkStatus,
 )
 
 __all__ = [
@@ -31,4 +35,8 @@ __all__ = [
     "ChatThread",
     "ChatMessage",
     "ToolCall",
+    "WorkComment",
+    "WorkItem",
+    "WorkPriority",
+    "WorkStatus",
 ]

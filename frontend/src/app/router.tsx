@@ -12,6 +12,7 @@ import { OrderDetailPage } from "@/features/orders/components/OrderDetailPage";
 import { OrdersPage } from "@/features/orders/components/OrdersPage";
 import { ProductsPage } from "@/features/products/components/ProductsPage";
 import { ProvidersPage } from "@/features/providers/components/ProvidersPage";
+import { WorkBoardPage } from "@/features/work-board/components/WorkBoardPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
       { path: "ordenes", element: <OrdersPage /> },
       { path: "ordenes/nueva", element: <OrderCreatePage /> },
       { path: "ordenes/:id", element: <OrderDetailPage /> },
+      { path: "trabajo", element: <WorkBoardPage /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

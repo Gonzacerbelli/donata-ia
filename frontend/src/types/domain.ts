@@ -114,6 +114,35 @@ export interface InventoryValue {
   units: number;
 }
 
+export type WorkStatus = "pendiente" | "en_curso" | "bloqueado" | "terminado";
+export type WorkPriority = "alta" | "media" | "baja";
+
+export interface WorkComment {
+  id: string;
+  author_id: string;
+  author_name: string;
+  text: string;
+  created_at: string;
+}
+
+export interface WorkCard {
+  sale_id: string;
+  client_id: string;
+  date: string;
+  items: SaleItem[];
+  total: number;
+  status: WorkStatus;
+  priority: WorkPriority;
+  assigned_to: string | null;
+  comments: WorkComment[];
+}
+
+export interface UserSummary {
+  id: string;
+  name: string | null;
+  email: string | null;
+}
+
 export type NotificationSeverity = "alta" | "media" | "baja";
 export type NotificationEntity = "product" | "sale";
 

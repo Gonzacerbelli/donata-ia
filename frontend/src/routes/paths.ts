@@ -6,4 +6,5 @@ export const paths = {
   products: "/productos",
   clients: "/clientes",
   orders: "/ordenes",
+  work: "/trabajo",
 } as const;
