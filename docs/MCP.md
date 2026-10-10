@@ -202,6 +202,11 @@ desde el **entorno del proceso**, no desde el `.env` del proyecto. Hay que defin
 como variable de usuario/sistema **antes** de arrancar opencode (si el valor queda vacío, el
 header sale como `Bearer ` y GitHub responde `401`).
 
+> **El valor debe ser solo el token, sin prefijo.** Un valor pegado por error como
+> `GITHUB_PAT=<token>` (nombre=valor en el campo *Value* de Windows) rompe la resolución de
+> `{env:GITHUB_PAT}` y el servidor responde `401`. Un token válido empieza en `ghp_` (o
+> `github_pat_`).
+
 ```powershell
 # Windows (una sola vez; después reiniciar opencode)
 [Environment]::SetEnvironmentVariable("GITHUB_PAT","<token>","User")
@@ -215,9 +220,30 @@ export GITHUB_PAT=<token>   # en el shell que lanza opencode
 Scopes: un token **fine-grained** limitado a `Gonzacerbelli/donata-ia` (Contents + Pull requests)
 alcanza; un token clásico necesita el scope `repo`. No se necesitan permisos de más.
 
-> **Estado: Probado.** El servidor se usó de punta a punta en el hito de documentación MCP: creó
-> la rama, el commit y el pull request #17 sin salir del editor. Deja de ser "configuración
-> muerta" en el sentido de §6.
+> **Estado: Probado.** Se usó de punta a punta en los hitos de documentación MCP y del tablero de
+> trabajo: creó la rama, los commits y los pull requests #17, #19 y #20 (merge squash) sin salir
+> del editor. Con el #20 se usó además para reparar 25 archivos con el encoding roto que el
+> propio server había subido mal (ver §2.5.1). Deja de ser "configuración muerta" en el sentido
+> de §6.
+
+### 2.5.1 Invocación desde PowerShell: el body tiene que viajar en **UTF-8**
+
+Las tools del server se invocan por HTTP a `https://api.githubcopilot.com/mcp/` con JSON-RPC. Si
+se invoca desde PowerShell, el cuerpo **debe** viajar como bytes UTF-8 y no como string:
+
+```powershell
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+Invoke-WebRequest -Uri "https://api.githubcopilot.com/mcp/" -Method Post `
+  -Headers @{ Authorization = "Bearer $token"; Accept = "application/json, text/event-stream" } `
+  -ContentType "application/json; charset=utf-8" -Body $bytes
+```
+
+Con `-Body <string>` PowerShell 5.1 codifica el JSON como **ISO-8859-1**, así que todo carácter
+no-ASCII que viaje en los argumentos —contenido de archivos nuevos, títulos y cuerpos de PR— se
+corrompe en GitHub (`á` → `\uFFFD` "carácter de reemplazo", `—` → `?`). Es lo que pasó en el PR
+#19: 25 archivos de `main` quedaron con el encoding roto, y se repararon re-publicándolos con el
+body en bytes UTF-8 (PR #20). Tras publicar archivos con acentos hace falta verificar con
+`git diff --stat <estado-verificado> HEAD` en 0 líneas.
 
 ---
 
@@ -333,7 +359,7 @@ primer `npx`, no un fallo de la configuración.
 | Servidor MCP #2 | `filesystem` | Externo (local) | Configurado |
 | Servidor MCP #3 | `playwright` | Externo (local) | Configurado |
 | Servidor MCP #4 | `sequential-thinking` | Externo (local) | Configurado |
-| Servidor MCP #5 | `github` | **Externo remoto** | **Probado** (rama + commit + PR #17) |
+| Servidor MCP #5 | `github` | **Externo remoto** | **Probado** (rama + commit + push_files + PRs #17/#19/#20) |
 
 **Cobertura:** 1 servidor MCP propio en la arquitectura del producto + 5 servidores MCP en el
 entorno de desarrollo, **uno de ellos remoto**. El requisito (≥ 2 servidores, ≥ 1 externo) queda
