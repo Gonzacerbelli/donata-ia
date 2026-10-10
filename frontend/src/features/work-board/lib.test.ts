@@ -44,8 +44,8 @@ describe("summarizeItems", () => {
     ).toBe("Alfombra, Servicio");
   });
 
-  it("usa un texto por defecto sin �tems", () => {
-    expect(summarizeItems([])).toBe("Sin �tems");
+  it("usa un texto por defecto sin ítems", () => {
+    expect(summarizeItems([])).toBe("Sin ítems");
   });
 
   it("expone las tres prioridades", () => {

@@ -39,5 +39,5 @@ export function summarizeItems(items: SaleItem[]): string {
   const descriptions = items
     .map((item) => item.description)
     .filter((description): description is string => Boolean(description));
-  return descriptions.length > 0 ? descriptions.join(", ") : "Sin �tems";
+  return descriptions.length > 0 ? descriptions.join(", ") : "Sin ítems";
 }

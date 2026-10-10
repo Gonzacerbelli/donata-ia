@@ -71,7 +71,7 @@ async def _check_ollama() -> bool:
         async with httpx.AsyncClient(timeout=2.0) as client:
             response = await client.get(f"{settings.ollama_base_url}/api/tags")
         return response.status_code == 200
-    except Exception:  # pragma: no cover - health tolerante a ca�das de IA
+    except Exception:  # pragma: no cover - health tolerante a caídas de IA
         return False
 
 

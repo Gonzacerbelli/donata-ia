@@ -17,7 +17,7 @@ describe("workApi", () => {
     patch.mockReset();
   });
 
-  it("lista el tablero con los filtros activos y omite los vac�os", async () => {
+  it("lista el tablero con los filtros activos y omite los vacíos", async () => {
     get.mockResolvedValue({ data: [] });
     await workApi.list({ priority: "alta", assigned_to: "" });
     expect(get).toHaveBeenCalledWith("/work-items?priority=alta");

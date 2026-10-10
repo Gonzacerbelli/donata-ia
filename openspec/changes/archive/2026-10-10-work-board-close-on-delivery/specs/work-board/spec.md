@@ -6,12 +6,12 @@
 
 ## ADDED Requirements
 
-### Requirement: Cierre y reapertura autom�ticos al cambiar el estado de cumplimiento
+### Requirement: Cierre y reapertura automáticos al cambiar el estado de cumplimiento
 
 El estado de la tarjeta de trabajo SHALL sincronizarse con el estado de cumplimiento de la orden:
-al pasar la orden a `entregado` la tarjeta queda `terminado` autom�ticamente (creando el registro
-por upsert si no exist�a), y al volver de `entregado` a otro estado la tarjeta vuelve a `pendiente`
-conservando prioridad, asignaci�n y comentarios. Transiciones entre estados no entregados SHALL NOT
+al pasar la orden a `entregado` la tarjeta queda `terminado` automáticamente (creando el registro
+por upsert si no existía), y al volver de `entregado` a otro estado la tarjeta vuelve a `pendiente`
+conservando prioridad, asignación y comentarios. Transiciones entre estados no entregados SHALL NOT
 modificar la tarjeta.
 
 #### Scenario: Entrega cierra la tarjeta existente
@@ -19,7 +19,7 @@ modificar la tarjeta.
 - **WHEN** una orden con tarjeta en `en_curso` pasa a estado de cumplimiento `entregado`
 - **THEN** la tarjeta queda en estado de trabajo `terminado`
 
-#### Scenario: Entrega crea la tarjeta si no exist�a
+#### Scenario: Entrega crea la tarjeta si no existía
 
 - **WHEN** una orden sin registro de trabajo pasa a estado de cumplimiento `entregado`
 - **THEN** se crea su registro de trabajo con estado `terminado`
@@ -27,40 +27,40 @@ modificar la tarjeta.
 #### Scenario: Reapertura devuelve la tarjeta a pendiente
 
 - **WHEN** una orden entregada vuelve a un estado de cumplimiento no entregado
-- **THEN** la tarjeta vuelve a `pendiente` y conserva su prioridad, asignaci�n y comentarios
+- **THEN** la tarjeta vuelve a `pendiente` y conserva su prioridad, asignación y comentarios
 
 #### Scenario: Cambio de cumplimiento no relacionado no toca la tarjeta
 
 - **WHEN** una orden no entregada cambia entre estados no entregados (`pendiente` a `en_proceso`)
-- **THEN** el estado, la prioridad, la asignaci�n y los comentarios de su tarjeta no cambian
+- **THEN** el estado, la prioridad, la asignación y los comentarios de su tarjeta no cambian
 
-### Requirement: Tarjetas de �rdenes entregadas congeladas
+### Requirement: Tarjetas de órdenes entregadas congeladas
 
 `PATCH /work-items/{sale_id}` y `POST /work-items/{sale_id}/comments` SHALL responder `404` cuando
 la orden tiene estado de cumplimiento `entregado` o `cancelado`.
 
-#### Scenario: Modificaci�n rechazada
+#### Scenario: Modificación rechazada
 
-- **WHEN** se env�a `PATCH /work-items/{sale_id}` para una orden entregada
+- **WHEN** se envía `PATCH /work-items/{sale_id}` para una orden entregada
 - **THEN** responde `404` y la tarjeta no se modifica
 
 #### Scenario: Comentario rechazado
 
-- **WHEN** se env�a `POST /work-items/{sale_id}/comments` para una orden entregada
-- **THEN** responde `404` y no se agrega ning�n comentario
+- **WHEN** se envía `POST /work-items/{sale_id}/comments` para una orden entregada
+- **THEN** responde `404` y no se agrega ningún comentario
 
 ## MODIFIED Requirements
 
-### Requirement: Tablero con las �rdenes no canceladas
+### Requirement: Tablero con las órdenes no canceladas
 
-`GET /work-items` SHALL devolver todas las �rdenes cuyo estado de cumplimiento no sea `entregado` ni
-`cancelado` como tarjetas del tablero, junto con el resumen de sus �tems, la fecha del pedido y sus
+`GET /work-items` SHALL devolver todas las órdenes cuyo estado de cumplimiento no sea `entregado` ni
+`cancelado` como tarjetas del tablero, junto con el resumen de sus ítems, la fecha del pedido y sus
 datos de trabajo.
 
 #### Scenario: Listado del tablero
 
 - **WHEN** un usuario autenticado consulta `GET /work-items`
-- **THEN** recibe las �rdenes no entregadas ni canceladas con su fecha, resumen de �tems y estado de trabajo
+- **THEN** recibe las órdenes no entregadas ni canceladas con su fecha, resumen de ítems y estado de trabajo
 
 #### Scenario: Orden cancelada excluida
 
@@ -74,9 +74,9 @@ datos de trabajo.
 
 ### Requirement: Independencia del estado de cumplimiento y la cobranza
 
-El estado de trabajo, la prioridad, la asignaci�n y los comentarios SHALL ser un eje independiente:
+El estado de trabajo, la prioridad, la asignación y los comentarios SHALL ser un eje independiente:
 cambiarlos no SHALL modificar el estado de cumplimiento, los pagos ni el stock de la orden. La
-sincronizaci�n es unidireccional: marcar una tarjeta como `terminado` SHALL NOT entregar la orden.
+sincronización es unidireccional: marcar una tarjeta como `terminado` SHALL NOT entregar la orden.
 
 #### Scenario: Cambiar el trabajo no toca la venta
 

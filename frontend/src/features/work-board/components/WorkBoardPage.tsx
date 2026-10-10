@@ -62,7 +62,7 @@ export function WorkBoardPage() {
 
   return (
     <div>
-      <PageHeader title="Trabajo" description="Tablero de �rdenes por estado de trabajo." />
+      <PageHeader title="Trabajo" description="Tablero de órdenes por estado de trabajo." />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <select
@@ -71,8 +71,8 @@ export function WorkBoardPage() {
           onChange={(event) => setParam("sort", event.target.value)}
           className="rounded-lg border-0 bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none"
         >
-          <option value="desc">M�s recientes primero</option>
-          <option value="asc">M�s antiguas primero</option>
+          <option value="desc">Más recientes primero</option>
+          <option value="asc">Más antiguas primero</option>
         </select>
         <select
           aria-label="Filtrar por prioridad"
@@ -125,7 +125,7 @@ export function WorkBoardPage() {
         <div className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white py-16 text-center">
           <p className="text-sm font-medium text-slate-700">No hay tarjetas</p>
           <p className="text-sm text-slate-500">
-            No hay �rdenes que coincidan con los filtros seleccionados.
+            No hay órdenes que coincidan con los filtros seleccionados.
           </p>
         </div>
       )}

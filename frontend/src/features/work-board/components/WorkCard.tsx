@@ -48,7 +48,7 @@ export function WorkCard({
           {...listeners}
           {...attributes}
         >
-          ?
+          ⠿
         </button>
       </div>
 
