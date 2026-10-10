@@ -240,10 +240,10 @@ Invoke-WebRequest -Uri "https://api.githubcopilot.com/mcp/" -Method Post `
 
 Con `-Body <string>` PowerShell 5.1 codifica el JSON como **ISO-8859-1**, así que todo carácter
 no-ASCII que viaje en los argumentos —contenido de archivos nuevos, títulos y cuerpos de PR— se
-corrompe en GitHub (`á` → `�`, `—` → `?`). Es lo que pasó en el PR #19: 25 archivos de `main`
-quedaron con el encoding roto, y se repararon re-publicándolos con el body en bytes UTF-8 (PR
-#20). Tras publicar archivos con acentos hace falta verificar con `git diff --stat
-<estado-verificado> HEAD` en 0 líneas.
+corrompe en GitHub (`á` → `\uFFFD` "carácter de reemplazo", `—` → `?`). Es lo que pasó en el PR
+#19: 25 archivos de `main` quedaron con el encoding roto, y se repararon re-publicándolos con el
+body en bytes UTF-8 (PR #20). Tras publicar archivos con acentos hace falta verificar con
+`git diff --stat <estado-verificado> HEAD` en 0 líneas.
 
 ---
 
