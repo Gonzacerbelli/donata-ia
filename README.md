@@ -14,7 +14,7 @@ pedidos, proveedores y envíos, con un asistente de IA local.
 |---|---|
 | Frontend | React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query · React Router |
 | Backend | FastAPI · Pydantic v2 · Motor (MongoDB asíncrono) · PyJWT |
-| Base de datos | MongoDB (local en Docker o Atlas) |
+| Base de datos | MongoDB Atlas (SRV) |
 | IA | LangChain + MCP (`langchain-mcp-adapters`) + modelo local 14B vía Ollama |
 | Infraestructura | Docker · Docker Compose |
 | Tests | pytest · Vitest · Playwright |
@@ -27,10 +27,16 @@ pedidos, proveedores y envíos, con un asistente de IA local.
 git clone https://github.com/Gonzacerbelli/donata-ia.git
 cd donata-ia
 cp .env.example .env          # completar variables (ver abajo)
+# Pegar el connection string de Atlas en MONGO_URI (ver abajo)
 ollama pull qwen2.5:14b-instruct
 ollama pull nomic-embed-text
 docker compose up --build
 ```
+
+**MongoDB Atlas.** La app trabaja contra un cluster de Atlas: en `.env` poné tu connection
+string en `MONGO_URI` (`mongodb+srv://…`) y agregá la IP pública del equipo a la Access List del
+cluster (Dashboard → Network Access). El `docker-compose.yml` levanta **sólo la API**: no hay
+Mongo local.
 
 | Servicio | URL |
 |---|---|
@@ -54,7 +60,7 @@ año, con pagos y estados variados, para que el dashboard muestre métricas real
 
 | Variable | Para qué |
 |---|---|
-| `MONGO_URI` | Connection string de MongoDB |
+| `MONGO_URI` | Connection string de MongoDB Atlas (SRV, con usuario y contraseña) |
 | `JWT_SECRET` | Firma de los tokens. Generar: `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth 2.0 (CU01). Opcional |
 | `CORS_ORIGINS` | Lista blanca de orígenes del frontend |
@@ -76,7 +82,7 @@ Sin Ollama, **el resto del sistema funciona con normalidad**: sólo el chat qued
 ## 3. Arquitectura
 
 ```
-[React SPA] ──REST/JWT──▶ [FastAPI] ──▶ [MongoDB]
+[React SPA] ──REST/JWT──▶ [FastAPI] ──▶ [MongoDB Atlas]
                               │
                               ├──▶ [Servidor MCP "donata-mcp" (stdio, subproceso)]
                                │         └──▶ [Ollama local 14B]
