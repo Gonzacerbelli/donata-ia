@@ -52,7 +52,7 @@ cuestionan, se les escribe un ADR acá.
 |---|---|---|
 | 1 | Sin roles de usuario | `AGENTS.md` §3.1 |
 | 2 | Producto siempre con proveedor | `AGENTS.md` §3.2 |
-| 3 | IA 100 % local (Ollama 7B) | `AGENTS.md` §3.3 · skill `ollama-local` |
+| 3 | IA 100 % local (Ollama 14B) | `AGENTS.md` §3.3 · skill `ollama-local` |
 | 4 | El LLM sólo accede mediante tools tipadas | `ARQUITECTURA.md` §6.2 |
 | 5 | Montos en enteros ARS | `AGENTS.md` §3.6 |
 | 6 | Saldo siempre derivado | `AGENTS.md` §3.7 |
@@ -63,7 +63,7 @@ cuestionan, se les escribe un ADR acá.
 
 | # | Decisión | Archivo |
 |---|---|---|
-| 0001 | Las tools del agente se exponen en un servidor MCP propio | `0001-tools-del-agente-por-mcp.md` |
+| 0001 | Las tools del agente se exponen en un servidor MCP propio | `0001-tools-del-agente-por-servidor-mcp.md` |
 | 0002 | Atomicidad de stock por `update` condicional (sin transacciones) | `0002-atomicidad-de-stock.md` |
 | 0003 | Búsqueda vectorial local con colecciones separadas (manual / catálogo) | `0003-busqueda-vectorial-local.md` |
 | 0004 | Token de sesión en `localStorage` con validación de expiración en cliente | `0004-token-de-sesion-en-localstorage.md` |
@@ -75,5 +75,3 @@ cuestionan, se les escribe un ADR acá.
 | Decisión pendiente | Por qué va a necesitar ADR |
 |---|---|
 | Dónde vive el estado de las notificaciones (derivado vs persistido) | Afecta consistencia y complejidad |
-| Modelo de 7B elegido | El comportamiento de tool-calling varía mucho entre modelos del mismo tamaño |
-| Integración de la IA en el flujo de órdenes | Si el chat puede crear órdenes o sólo consultarlas es una decisión de producto |

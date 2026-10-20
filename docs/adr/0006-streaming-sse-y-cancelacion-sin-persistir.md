@@ -47,7 +47,7 @@ SSE manual, con dos reglas atadas al contrato:
 (`test_chat_stream_*` y el E2E de historial espera el cierre del stream).
 
 **En contra:** sin keep-alive propio, un proxies intermedio podría cortar streams largos
-(aceptado: los turnos son < `OLLAMA_TIMEOUT=60s`); el cliente que recarga a mitad de turno
+(aceptado: los turnos son < `OLLAMA_TIMEOUT=120s`); el cliente que recarga a mitad de turno
 pierde ese turno por diseño (hay que explicarlo, no es un bug).
 
 **Impacto en el código:** `backend/app/routers/chat.py` (`_sse`, `POST /chat/stream`),

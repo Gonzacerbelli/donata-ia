@@ -37,7 +37,7 @@ El sistema administra cinco ejes de negocio:
 | Backend | FastAPI (Python 3.12) + Pydantic v2 + Motor (MongoDB asíncrono) |
 | Base de datos | MongoDB Atlas |
 | Infraestructura | Docker + Docker Compose |
-| Asistente IA | **LangChain** + modelo local **7B** servido por **Ollama** (100 % local, sin API cloud) |
+| Asistente IA | **LangChain** + modelo local **14B** servido por **Ollama** (100 % local, sin API cloud) |
 | Autenticación | OAuth 2.0 (Google) + JWT Bearer |
 | Exportación | CSV y Excel (`.xlsx`) |
 
@@ -54,7 +54,7 @@ validación no tenga que inferirlas de cada CU:
    (`provider_id` obligatorio). No se permite crear ni dejar un producto sin proveedor, porque
    la reposición de stock depende de saber a quién comprarle.
 3. **Todo el cómputo es local.** No se usan servicios de IA en la nube. El LLM del asistente es
-   un modelo de ~7B parámetros ejecutándose en la máquina del dueño mediante Ollama.
+   un modelo de ~14B parámetros ejecutándose en la máquina del dueño mediante Ollama.
 4. **La API es la única vía de acceso a datos.** El frontend React nunca conversa con
    MongoDB; todo pasa por HTTP contra FastAPI, que valida, autoriza y audita.
 5. **El asistente IA no tiene acceso directo a la base de datos.** Sólo puede actuar a través
@@ -476,14 +476,27 @@ documentación en README (1 pt), implementación MCP (1 pt) y chatbot con LangCh
 | | |
 |---|---|
 | **Actor** | Usuario autenticado |
-| **Precondiciones** | El usuario tiene sesión activa. El servidor Ollama está levantado en la máquina del dueño con un modelo de ~7B parámetros descargado. |
+| **Precondiciones** | El usuario tiene sesión activa. El servidor Ollama está levantado en la máquina del dueño con un modelo de ~14B parámetros descargado. |
 | **Postcondiciones** | Las acciones solicitadas quedan persistidas en la base de datos y son visibles en la interfaz. Las consultas de seguimiento devuelven datos reales del sistema, no inventados. |
 
 > **Requisito de la rúbrica (2 pts): asistente inteligente integrado con LangChain.**
 > El asistente es un **agente con herramientas** (tool-calling) que opera sobre la lógica de
-> negocio de la API. El modelo es **local**: `qwen2.5:7b-instruct` (o `llama3.1:8b` /
-> `mistral:7b`), servido por Ollama en `localhost`. No se envía información del negocio a
+> negocio de la API. El modelo es **local**: `qwen2.5:14b-instruct` (o `qwen2.5:7b-instruct` /
+> `llama3.1:8b`), servido por Ollama en `localhost`. No se envía información del negocio a
 > ningún servicio externo.
+>
+> **Nota de implementación (7B → 14B).** La propuesta original fijaba un modelo de ~7B
+> (`qwen2.5:7b-instruct`). Durante la implementación se comprobó que ese tamaño era
+> **demasiado chico** para la tarea: el tool-calling fallaba de forma recurrente y el modelo
+> **inventaba ObjectIds** en lugar de consultar las herramientas, o escribía la llamada a la
+> tool como **texto plano** en vez de invocarla nativamente. En la práctica esto producía
+> propuestas inválidas que se repetían hasta agotar el bucle del agente (varios minutos sin
+> resultado) y respuestas que **simulaban acciones que nunca se ejecutaron**. Se migró a
+> `qwen2.5:14b-instruct`, con el que el seguimiento de instrucciones y el tool-calling en
+> español son sensiblemente más fiables. La decisión de diseño se mantiene: **el modelo nunca
+> inventa IDs ni datos**; para las referencias por nombre que el modelo alucinaba se agregó una
+> **resolución determinística por nombre** contra el catálogo, y un corte temprano tras
+> fallos idénticos repetidos. El tamaño concreto sigue siendo configurable por `OLLAMA_MODEL`.
 
 ### 7.1 Arquitectura del asistente
 
@@ -494,11 +507,11 @@ documentación en README (1 pt), implementación MCP (1 pt) y chatbot con LangCh
 └──────────────┘   respuesta en streaming (SSE)       │  LangChain AgentExecutor   │
                                                        │   ├─ System prompt          │
                                                        │   ├─ Herramientas tipadas   │
-                                                       │   └─ llm = ChatOllama(7B)  │
+                                                       │   └─ llm = ChatOllama(14B) │
                                                        └───────────┬────────────────┘
                                                                    │
                                               ┌────────────────────▼──────────────────┐
-                                              │  Ollama (local, ~7B, sin internet)   │
+                                              │  Ollama (local, ~14B, sin internet)  │
                                               └───────────────────────────────────────┘
 ```
 
@@ -567,7 +580,7 @@ documentación en README (1 pt), implementación MCP (1 pt) y chatbot con LangCh
 ### 7.3 Reglas duras del system prompt
 
 El prompt de sistema se estructura explícitamente en secciones (rol, contexto, reglas,
-formato, ejemplos) para que el modelo de 7B se comporte de forma predecible:
+formato, ejemplos) para que el modelo se comporte de forma predecible:
 
 1. Es el asistente de gestión de **DonataDeco**; habla **español rioplatense**, conciso.
 2. **Nunca inventa datos.** Si no tiene la información, usa una herramienta o pide el dato.
@@ -598,7 +611,7 @@ formato, ejemplos) para que el modelo de 7B se comporte de forma predecible:
 ### Criterios de aceptación
 
 - [ ] El chat está integrado en la aplicación web, accesible desde cualquier pantalla.
-- [ ] El asistente opera sobre un **modelo local de ~7B** vía Ollama, sin API cloud.
+- [ ] El asistente opera sobre un **modelo local de ~14B** vía Ollama, sin API cloud.
 - [ ] **Crear cliente** con lenguaje natural funciona y confirma con un enlace al registro creado.
 - [ ] **Crear orden** con lenguaje natural funciona: resuelve el cliente, los productos, aplica
       el precio según el tipo de cliente, calcula descuentos y envío, y respeta el stock.
