@@ -116,6 +116,18 @@ def test_validate_answer_ok_on_clean():
         ("de qué productos debo reponer stock?", False),
         ("qué falta reponer?", False),
         ("quiero cancelar la orden de marta", True),
+        ("repone tapiz mural sol por 68 unidades manteniendo el precio", True),
+        ("reponé 5 unidades del tapiz", True),
+        ("agregá un cliente llamado Tito", True),
+        ("cargá una venta de 7 soportes", True),
+        ("registrá un pago de 5000 pesos", True),
+        ("cancelá la orden de marta", True),
+        ("actualizá el precio del tapiz", True),
+        ("modificá el proveedor del producto", True),
+        ("eliminá el cliente de prueba", True),
+        ("mostrame las ventas canceladas del mes", False),
+        ("cuántas órdenes tengo canceladas?", False),
+        ("cuál es el total de los pagos de esta semana?", False),
     ],
 )
 def test_mentions_write_action(text: str, expected: bool):

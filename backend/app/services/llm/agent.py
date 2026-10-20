@@ -126,6 +126,13 @@ MAX_STEPS = 8
 
 MAX_TEXT_RECOVERIES = 3
 
+MAX_IDENTICAL_FAILURES = 2
+
+UNRESOLVED_REFERENCE_REPLY = (
+    "No pude identificar con certeza el producto o cliente de esa acción, así que no se "
+    "ejecutó nada. ¿Me pasás el nombre exacto y te la vuelvo a proponer?"
+)
+
 PROPOSE_NUDGE = (
     "Dejá la acción registrada como propuesta llamando a la herramienta correspondiente "
     "con sus parámetros, para que el usuario la confirme en la pantalla; no hace falta "
@@ -144,12 +151,38 @@ NO_PROPOSAL_FEEDBACK = (
     "una acción de escritura, volvé a proponerla con `proponer_accion`."
 )
 
-_CONFIRM_IN_UI = re.compile(
-    r"\bconfir(ma|me|me[mn]|alo|ala|emos|ar)\b[^.!?]{0,40}"
-    r"\b(esta|la|el|lo|tu|pantalla|acci[oó]n|continuar|ejecutar|propuesta)"
-    r"|\b(requiere|necesita|pide|pendiente\s+de)\s+(tu\s+|de\s+)?confirmaci[oó]n",
+NO_PROPOSAL_REPLY = (
+    "No llegué a registrar la acción en la pantalla, así que no se ejecutó nada. "
+    "Reformulá el pedido y te la vuelvo a proponer para que la confirmes."
+)
+
+_CONFIRM_WORD = re.compile(r"\bconfirm\w*", re.I)
+
+_CONFIRM_EXCLUDE = re.compile(r"\bconfirmad[oa]s?\b|\bconfirmaci[oó]n(?:es)?\b", re.I)
+
+_CONFIRM_NEGATION = re.compile(
+    r"\bnada\b[^.!?]{0,40}\b(?:que\s+)?confirm\w*"
+    r"|\bno\s+hay\s+nada\b[^.!?]{0,40}\bconfirm\w*"
+    r"|\bsin\s+confirm\w*",
     re.I,
 )
+
+_CLAIM_EXECUTION = re.compile(
+    r"\bhecho\b"
+    r"|\blisto\b[^.!?]{0,20}\b(?:qued|hech|ejecut|realiz|actualiz|repon)"
+    r"|\bya\s+(?:\w+\s+){0,2}?(?:ejecut|realiz|hech|list|actualiz|repon|registr|carg|agreg|cancel)"
+    r"|\bse\s+(?:actualiz|repus|repon|ejecut|realiz|agreg|registr|carg|cancel)\w*"
+    r"|revis[aá]\s+el\s+resultado"
+    r"|\u2705",
+    re.I,
+)
+
+_ACCENTS = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunAEIOUUN")
+
+
+def _fold(text: str) -> str:
+    return text.translate(_ACCENTS).lower()
+
 
 WRITE_TOOLS = {
     "crear_cliente",
@@ -369,6 +402,7 @@ async def run_agent(
     reoriented = False
     text_recoveries = 0
     confirm_retried = False
+    failures: dict[str, int] = {}
 
     firmas = signatures_text(write_tools)
     system_prompt = f"{SYSTEM_PROMPT}\n\n{firmas}" if firmas else SYSTEM_PROMPT
@@ -394,6 +428,8 @@ async def run_agent(
             if entry is not None and is_query:
                 entry = {**entry, "ok": False, "result": QUERY_NO_PROPOSAL}
             if entry is not None and entry.get("ok"):
+                hint = f"{message}\n{entry['arguments'].get('resumen') or ''}"
+                entry = await resolve_entry_references(db, entry, hint)
                 feedback = await reference_feedback(
                     db, entry["arguments"]["herramienta"], entry["arguments"]["argumentos"]
                 )
@@ -406,6 +442,17 @@ async def run_agent(
                 tool_calls_log.append(entry)
                 reoriented = True
                 messages.append(HumanMessage(content=QUERY_NO_PROPOSAL))
+                continue
+            if entry is not None and not entry.get("ok") and not is_query:
+                tool_calls_log.append(entry)
+                key = _failure_key(entry)
+                if key is not None:
+                    failures[key] = failures.get(key, 0) + 1
+                    if failures[key] >= MAX_IDENTICAL_FAILURES:
+                        return UNRESOLVED_REFERENCE_REPLY, tool_calls_log
+                messages.append(
+                    HumanMessage(content=str(entry.get("result") or NO_PROPOSAL_FEEDBACK))
+                )
                 continue
             if entry is None and text_recoveries < MAX_TEXT_RECOVERIES:
                 text_call = _extract_text_call(text, set(tool_map))
@@ -423,7 +470,10 @@ async def run_agent(
                         ToolMessage(content=_stringify(result), tool_call_id=f"texto-{name}")
                     )
                     continue
-            if not _has_proposal(tool_calls_log) and _asks_confirmation(text):
+            deceptive = not _has_proposal(tool_calls_log) and (
+                _asks_confirmation(text) or _claims_execution(text)
+            )
+            if deceptive:
                 if not confirm_retried:
                     confirm_retried = True
                     messages.append(HumanMessage(content=NO_PROPOSAL_FEEDBACK))
@@ -440,6 +490,14 @@ async def run_agent(
                     nudge = f"{entry['result']} {PROPOSE_NUDGE}"
                 messages.append(HumanMessage(content=nudge))
                 continue
+            if not _has_proposal(tool_calls_log) and (
+                _asks_confirmation(text) or _claims_execution(text)
+            ):
+                text = _without_confirmation(text)
+            if not _has_proposal(tool_calls_log):
+                text = _strip_text_calls(text, set(tool_map))
+                if not text.strip():
+                    text = NO_PROPOSAL_REPLY
             return text, tool_calls_log
         for call in calls:
             if call["name"] in WRITE_TOOLS:
@@ -454,6 +512,8 @@ async def run_agent(
                 else:
                     entry = _write_proposal(write_tools, call)
                     if entry.get("ok"):
+                        hint = f"{message}\n{entry['arguments'].get('resumen') or ''}"
+                        entry = await resolve_entry_references(db, entry, hint)
                         feedback = await reference_feedback(
                             db, entry["arguments"]["herramienta"], entry["arguments"]["argumentos"]
                         )
@@ -464,24 +524,49 @@ async def run_agent(
                     "tool_end",
                     {"name": call["name"], "ok": entry.get("ok", False), "result": entry["result"]},
                 )
+                if not entry.get("ok") and not is_query:
+                    key = _failure_key(entry)
+                    if key is not None:
+                        failures[key] = failures.get(key, 0) + 1
+                        if failures[key] >= MAX_IDENTICAL_FAILURES:
+                            return UNRESOLVED_REFERENCE_REPLY, tool_calls_log
                 messages.append(ToolMessage(content=entry["result"], tool_call_id=call["id"]))
                 continue
             tool = tool_map.get(call["name"])
-            await _emit("tool_start", {"name": call["name"], "arguments": call["args"]})
+            call_args = call["args"]
+            await _emit("tool_start", {"name": call["name"], "arguments": call_args})
             if is_query and call["name"] == "proponer_accion":
                 result = QUERY_NO_PROPOSAL
+            elif call["name"] == "proponer_accion" and isinstance(
+                call_args.get("argumentos"), dict
+            ):
+                hint = f"{message}\n{call_args.get('resumen') or ''}"
+                corrected = await resolve_invalid_references(db, call_args["argumentos"], hint)
+                call_args = {**call_args, "argumentos": corrected}
+                result = await _invoke_tool(tool, call_args)
+                feedback = await reference_feedback(
+                    db, str(call_args.get("herramienta") or ""), corrected
+                )
+                if feedback:
+                    result = feedback
             else:
-                result = await _invoke_tool(tool, call["args"])
+                result = await _invoke_tool(tool, call_args)
             ok = _result_ok(call["name"], result)
             tool_calls_log.append(
                 {
                     "name": call["name"],
-                    "arguments": call["args"],
+                    "arguments": call_args,
                     "result": result,
                     "ok": ok,
                 }
             )
             await _emit("tool_end", {"name": call["name"], "ok": ok, "result": result})
+            if not ok and call["name"] == "proponer_accion" and not is_query:
+                key = _failure_key({"name": call["name"], "arguments": call_args, "ok": ok})
+                if key is not None:
+                    failures[key] = failures.get(key, 0) + 1
+                    if failures[key] >= MAX_IDENTICAL_FAILURES:
+                        return UNRESOLVED_REFERENCE_REPLY, tool_calls_log
             messages.append(ToolMessage(content=_stringify(result), tool_call_id=call["id"]))
     return (
         "No pude completar la consulta en varios intentos. ¿Podés reformularla?",
@@ -526,15 +611,24 @@ def _has_proposal(tool_calls_log: list[dict]) -> bool:
 
 def _asks_confirmation(text: str) -> bool:
     """True si el texto le pide al usuario confirmar algo sin propuesta registrada."""
-    return bool(_CONFIRM_IN_UI.search(text))
+    folded = _fold(text)
+    words = [word for word in _CONFIRM_WORD.findall(folded) if not _CONFIRM_EXCLUDE.fullmatch(word)]
+    if not words:
+        return False
+    return not _CONFIRM_NEGATION.search(folded)
+
+
+def _claims_execution(text: str) -> bool:
+    """True si el texto afirma que una acción ya se ejecutó (alucinación de éxito)."""
+    return bool(_CLAIM_EXECUTION.search(_fold(text)))
 
 
 def _without_confirmation(text: str) -> str:
-    """Quita del texto las oraciones que piden confirmación."""
+    """Quita del texto las oraciones que piden confirmación o dicen que ya se ejecutó."""
     sentences = re.split(r"(?<=[.!?])\s+", text)
-    kept = [s for s in sentences if not _asks_confirmation(s)]
+    kept = [s for s in sentences if not _asks_confirmation(s) and not _claims_execution(s)]
     result = " ".join(kept).strip()
-    return result or "No hay ninguna propuesta registrada en la pantalla."
+    return result or NO_PROPOSAL_REPLY
 
 
 _CALL_START = re.compile(r"\b([a-z_][a-z0-9_]*)\s*\(")
@@ -602,6 +696,28 @@ def _extract_text_call(text: str, tool_names: set[str]) -> tuple[str, dict] | No
         else:
             return node.func.id, kwargs
     return None
+
+
+def _strip_text_calls(text: str, tool_names: set[str]) -> str:
+    """Quita del texto las llamadas a herramientas escritas como texto (nunca van al usuario)."""
+    result: list[str] = []
+    index = 0
+    while True:
+        match = _CALL_START.search(text, index)
+        if match is None:
+            result.append(text[index:])
+            break
+        name = match.group(1)
+        expression = _balanced_call(text, match.start()) if name in tool_names else None
+        if expression is None:
+            result.append(text[index : match.end()])
+            index = match.end()
+            continue
+        result.append(text[index : match.start()])
+        index = match.start() + len(expression)
+    cleaned = "".join(result)
+    cleaned = re.sub(r"`{3,}[a-zA-Z]*", "", cleaned)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
 
 
 def _text_call_entry(text: str, write_tools: list[BaseTool]) -> dict | None:
@@ -730,6 +846,102 @@ async def reference_feedback(db, name: str, args: dict) -> str | None:
     if hints:
         message = f"{message} {' '.join(hints)}"
     return f"{message} Volvé a proponer con el id real de esa búsqueda."
+
+
+_NAME_SEPARATORS = re.compile(r"[^a-z0-9]+")
+
+
+def _name_key(value: str) -> str:
+    return _NAME_SEPARATORS.sub(" ", _fold(value)).strip()
+
+
+def _match_by_name(candidates: list, hint: str):
+    """Devuelve la única entidad cuyo nombre aparece en el texto, o None si es ambiguo."""
+    hint_key = _name_key(hint)
+    if not hint_key:
+        return None
+    matches = [
+        candidate
+        for candidate in candidates
+        if _name_key(getattr(candidate, "name", ""))
+        and f" {_name_key(candidate.name)} " in f" {hint_key} "
+    ]
+    if not matches:
+        return None
+    matches.sort(key=lambda candidate: len(_name_key(candidate.name)), reverse=True)
+    best = matches[0]
+    best_key = _name_key(best.name)
+    if all(_name_key(other.name) in best_key for other in matches[1:]):
+        return best
+    return None
+
+
+async def _resolve_product(db, hint: str):
+    products = await products_repo.list_products(db, active_only=True)
+    return _match_by_name(products, hint)
+
+
+async def _resolve_client(db, hint: str):
+    clients = await clients_repo.list_clients(db)
+    return _match_by_name(clients, hint)
+
+
+async def resolve_invalid_references(db, args: dict, hint: str) -> dict:
+    """Corrige ids inexistentes usando el nombre de la entidad nombrado en el texto."""
+    if db is None:
+        return args
+    resolved = dict(args)
+    product_id = resolved.get("producto_id")
+    if product_id and not await _reference_exists(db, "producto_id", str(product_id)):
+        product = await _resolve_product(db, hint)
+        if product is not None:
+            resolved["producto_id"] = product.id
+    client_id = resolved.get("cliente_id")
+    if client_id and not await _reference_exists(db, "cliente_id", str(client_id)):
+        client = await _resolve_client(db, hint)
+        if client is not None:
+            resolved["cliente_id"] = client.id
+    items = resolved.get("items")
+    if isinstance(items, list):
+        fixed_items = []
+        for item in items:
+            if isinstance(item, dict) and item.get("product_id"):
+                if not await _reference_exists(db, "product_id", str(item["product_id"])):
+                    product = await _resolve_product(db, hint)
+                    if product is not None:
+                        item = {**item, "product_id": product.id}
+            fixed_items.append(item)
+        resolved["items"] = fixed_items
+    return resolved
+
+
+async def resolve_entry_references(db, entry: dict, hint: str) -> dict:
+    """Aplica la resolución por nombre a las referencias de una propuesta registrable."""
+    if not entry.get("ok"):
+        return entry
+    arguments = entry.get("arguments") or {}
+    herramienta = arguments.get("herramienta")
+    argumentos = arguments.get("argumentos")
+    if not herramienta or not isinstance(argumentos, dict):
+        return entry
+    resolved = await resolve_invalid_references(db, argumentos, hint)
+    if resolved == argumentos:
+        return entry
+    return {**entry, "arguments": {**arguments, "argumentos": resolved}}
+
+
+def _failure_key(entry: dict) -> str | None:
+    if entry.get("ok"):
+        return None
+    arguments = entry.get("arguments") or {}
+    herramienta = arguments.get("herramienta") or entry.get("name")
+    argumentos = arguments.get("argumentos")
+    if not isinstance(argumentos, dict):
+        argumentos = arguments
+    try:
+        return f"{herramienta}:{json.dumps(argumentos, sort_keys=True, default=str)}"
+    except (TypeError, ValueError):
+        return None
 
 
 PROPOSED_OK = (

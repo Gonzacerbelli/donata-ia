@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.services.llm import assistant, guardrails
 
 
@@ -481,6 +483,273 @@ async def test_run_agent_text_call_recovery_is_capped(monkeypatch):
     assert reply == "No encontré resultados."
 
 
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Vamos a reponer 68 unidades del tapiz. ¿Confirmás esta acción?", True),
+        ("Confirmá en la pantalla", True),
+        ("¿Me confirmás?", True),
+        ("confirmalo cuando quieras", True),
+        ("Confirma en la pantalla para ejecutar.", True),
+        ("No hay nada que confirmar.", False),
+        ("El pedido quedó confirmado.", False),
+        ("Camila debe 53200 pesos.", False),
+    ],
+)
+def test_asks_confirmation_detects_voseo_and_forms(text: str, expected: bool):
+    from app.services.llm import agent
+
+    assert agent._asks_confirmation(text) is expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Reponer stock: sumar 68 unidades al stock del tapiz. "
+            "Hecho. Revisá el resultado en la pantalla.",
+            True,
+        ),
+        ("Listo, quedó hecho.", True),
+        ("La venta ya fue ejecutada.", True),
+        ("Se actualizó el precio del producto.", True),
+        ("Reponer stock: sumar 68 unidades al stock del tapiz.", False),
+        ("Confirmala en la pantalla.", False),
+        ("¿Cuántos productos tengo con stock?", False),
+    ],
+)
+def test_claims_execution_detects_success_phrases(text: str, expected: bool):
+    from app.services.llm import agent
+
+    assert agent._claims_execution(text) is expected
+
+
+async def test_run_agent_does_not_return_hallucinated_success(monkeypatch):
+    from app.services.llm import agent
+
+    hallucination = (
+        "Vamos a reponer 68 unidades del tapiz mural Sol y mantener su precio actual. "
+        "¿Confirmás esta acción?\n\n"
+        "Reponer stock: sumar 68 unidades al stock del tapiz mural Sol. "
+        "Hecho. Revisá el resultado en la pantalla."
+    )
+    _fake_agent_env(monkeypatch, [_single_text_round(hallucination)] * 3)
+
+    reply, log = await agent.run_agent(
+        "repone tapiz mural sol por 68 unidades manteniendo el precio"
+    )
+
+    assert "Hecho" not in reply
+    assert "Revisá el resultado" not in reply
+    assert not agent._has_proposal(log)
+
+
+async def test_run_agent_hallucinated_text_recovers_into_a_proposal(monkeypatch):
+    from app.services.llm import agent, assistant
+
+    hallucination = (
+        "Vamos a reponer 68 unidades del tapiz mural Sol y mantener su precio actual. "
+        "¿Confirmás esta acción?\n\n"
+        "Reponer stock: sumar 68 unidades al stock del tapiz mural Sol. "
+        "Hecho. Revisá el resultado en la pantalla."
+    )
+    _fake_agent_env(
+        monkeypatch,
+        [
+            _single_text_round(hallucination),
+            _named_call_round("reponer_stock", {"producto_id": "abc123", "cantidad": 68}),
+            _single_text_round(
+                "Reponer stock: sumar 68 unidades al stock del tapiz mural Sol. "
+                "Confirmala en la pantalla."
+            ),
+        ],
+        write_tools=[_stub_reponer_tool()],
+    )
+
+    reply, log = await agent.run_agent(
+        "repone tapiz mural sol por 68 unidades manteniendo el precio"
+    )
+
+    assert agent._has_proposal(log)
+    pending = assistant._pending_from(log, user_id="u-hallu", thread_id="t-hallu")
+    assert pending is not None
+    assert pending["tool"] == "reponer_stock"
+    assert pending["args"] == {"producto_id": "abc123", "cantidad": 68}
+    assert "Confirmala en la pantalla" in reply
+
+
+def test_strip_text_calls_removes_call_block():
+    from app.services.llm import agent
+
+    text = (
+        "Encontré el tapiz. Vamos a reponer.\n\n"
+        'proponer_accion(\n    herramienta="reponer_stock",\n'
+        '    argumentos={"producto_id": "idfalso", "cantidad": 68},\n'
+        '    resumen="Reponer 68 unidades."\n)\n'
+    )
+    cleaned = agent._strip_text_calls(text, agent.WRITE_TOOLS | {"proponer_accion"})
+
+    assert "proponer_accion(" not in cleaned
+    assert "Encontré el tapiz. Vamos a reponer." in cleaned
+
+
+async def test_run_agent_retries_text_call_with_bad_reference(monkeypatch):
+    from app.services.llm import agent
+
+    bad = (
+        "Encontré el tapiz. Vamos a reponer.\n\n"
+        'proponer_accion(\n    herramienta="reponer_stock",\n'
+        '    argumentos={"producto_id": "idfalso", "cantidad": 68},\n'
+        '    resumen="Reponer 68 unidades."\n)'
+    )
+    good = (
+        "Encontré el tapiz. Vamos a reponer.\n\n"
+        'proponer_accion(\n    herramienta="reponer_stock",\n'
+        '    argumentos={"producto_id": "abc123", "cantidad": 68},\n'
+        '    resumen="Reponer 68 unidades."\n)'
+    )
+    _fake_agent_env(
+        monkeypatch,
+        [_single_text_round(bad), _single_text_round(good)],
+        write_tools=[_stub_reponer_tool()],
+    )
+
+    async def fake_feedback(db, name, args):
+        if args.get("producto_id") == "abc123":
+            return None
+        return "Referencias inválidas: no existe el producto con id 'idfalso'."
+
+    monkeypatch.setattr(agent, "reference_feedback", fake_feedback)
+
+    reply, log = await agent.run_agent(
+        "repone tapiz mural sol por 68 unidades manteniendo el precio"
+    )
+
+    assert agent._has_proposal(log)
+    assert "proponer_accion(" not in reply
+
+
+async def test_run_agent_never_returns_raw_text_call(monkeypatch):
+    from app.services.llm import agent
+
+    bad = (
+        "Encontré el tapiz. Vamos a reponer.\n\n"
+        'proponer_accion(\n    herramienta="reponer_stock",\n'
+        '    argumentos={"producto_id": "idfalso", "cantidad": 68},\n'
+        '    resumen="Reponer 68 unidades."\n)'
+    )
+    _fake_agent_env(
+        monkeypatch,
+        [_single_text_round(bad)] * agent.MAX_STEPS,
+        write_tools=[_stub_reponer_tool()],
+    )
+
+    async def fake_feedback(db, name, args):
+        return "Referencias inválidas: no existe el producto con id 'idfalso'."
+
+    monkeypatch.setattr(agent, "reference_feedback", fake_feedback)
+
+    reply, log = await agent.run_agent(
+        "repone tapiz mural sol por 68 unidades manteniendo el precio"
+    )
+
+    assert "proponer_accion(" not in reply
+    assert not agent._has_proposal(log)
+    assert "Hecho" not in reply
+
+
+def test_match_by_name_picks_the_product_named_in_the_text():
+    from types import SimpleNamespace
+
+    from app.services.llm import agent
+
+    products = [
+        SimpleNamespace(id="p-sol", name="Tapiz mural Sol"),
+        SimpleNamespace(id="p-luna", name="Tapiz mural Luna"),
+    ]
+    match = agent._match_by_name(products, "repone tapiz mural sol por 68 unidades")
+
+    assert match is not None
+    assert match.id == "p-sol"
+
+
+def test_match_by_name_ignores_ambiguous_text():
+    from types import SimpleNamespace
+
+    from app.services.llm import agent
+
+    products = [
+        SimpleNamespace(id="p-sol", name="Tapiz mural Sol"),
+        SimpleNamespace(id="p-luna", name="Tapiz mural Luna"),
+    ]
+    match = agent._match_by_name(
+        products, "reponé tapiz mural sol y tapiz mural luna por 10 unidades"
+    )
+
+    assert match is None
+
+
+async def test_run_agent_resolves_hallucinated_product_id_by_name(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services.llm import agent
+
+    product = SimpleNamespace(id="6aca6dc2bd6d325d5f281657", name="Tapiz mural Sol")
+    bad = (
+        "Encontré el tapiz. Vamos a reponer.\n\n"
+        'proponer_accion(\n    herramienta="reponer_stock",\n'
+        '    argumentos={"producto_id": "6aca6dc4bd6d325d5f28165e", "cantidad": 68},\n'
+        '    resumen="Reponer 68 unidades del tapiz mural Sol."\n)'
+    )
+    _fake_agent_env(monkeypatch, [_single_text_round(bad)], write_tools=[_stub_reponer_tool()])
+
+    async def fake_exists(db, field, value):
+        return value == product.id
+
+    async def fake_list(db, **kwargs):
+        return [product]
+
+    monkeypatch.setattr(agent, "_reference_exists", fake_exists)
+    monkeypatch.setattr(agent.products_repo, "list_products", fake_list)
+
+    reply, log = await agent.run_agent(
+        "repone tapiz mural sol por 68 unidades manteniendo el precio", db=object()
+    )
+
+    assert agent._has_proposal(log)
+    assert log[-1]["arguments"]["argumentos"]["producto_id"] == product.id
+    assert "Propuesta registrada" in reply
+
+
+async def test_run_agent_stops_after_repeated_identical_failures(monkeypatch):
+    from app.services.llm import agent
+
+    bad = (
+        "Encontré el tapiz. Vamos a reponer.\n\n"
+        'proponer_accion(\n    herramienta="reponer_stock",\n'
+        '    argumentos={"producto_id": "idfalso", "cantidad": 68},\n'
+        '    resumen="Reponer 68 unidades."\n)'
+    )
+    fake = _fake_agent_env(
+        monkeypatch,
+        [_single_text_round(bad)] * agent.MAX_STEPS,
+        write_tools=[_stub_reponer_tool()],
+    )
+
+    async def fake_feedback(db, name, args):
+        return "Referencias inválidas: no existe el producto con id 'idfalso'."
+
+    monkeypatch.setattr(agent, "reference_feedback", fake_feedback)
+
+    reply, log = await agent.run_agent(
+        "repone tapiz mural sol por 68 unidades manteniendo el precio"
+    )
+
+    assert fake._i <= agent.MAX_IDENTICAL_FAILURES
+    assert reply == agent.UNRESOLVED_REFERENCE_REPLY
+    assert not agent._has_proposal(log)
+
+
 def test_result_ok_flags_mcp_validation_errors():
     from app.services.llm import agent
 
@@ -583,7 +852,7 @@ async def test_chat_write_requires_ui_confirmation(auth_client, monkeypatch):
     import re
 
     confirmation = confirmed.json()["response"]
-    assert confirmation.startswith("Crear cliente Lucía Confirmada. Hecho.")
+    assert confirmation.startswith("Listo, quedó hecho: Crear cliente Lucía Confirmada.")
     assert re.search(r"\b[0-9a-f]{24}\b", confirmation) is None
 
     clients = await auth_client.get("/clients?search=Lucía Confirmada")
@@ -631,6 +900,21 @@ def _stub_write_tool(name="crear_venta", schema=None):
                 },
             },
             "required": ["cliente_id", "items"],
+        },
+    )
+
+
+def _stub_reponer_tool():
+    return _stub_write_tool(
+        name="reponer_stock",
+        schema={
+            "type": "object",
+            "properties": {
+                "producto_id": {"type": "string"},
+                "cantidad": {"type": "integer"},
+                "precio_venta": {"type": "integer", "default": 0},
+            },
+            "required": ["producto_id", "cantidad"],
         },
     )
 
