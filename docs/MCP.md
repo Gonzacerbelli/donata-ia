@@ -173,8 +173,8 @@ Ejemplos de uso:
 obvia** y hace falta desarmar el problema antes de decidir:
 
 - ¿Cómo garantizar atomicidad de stock sinÍ Introducir una transacción que Mongo standalone no da?
-- ¿Cómo diseñar las tools del agente para que un 7B elija bien la correcta?
-- ¿Cuál es el modelo 7B que mejor sigue instrucciones en español en CPU?
+- ¿Cómo diseñar las tools del agente para que un modelo chico elija bien la correcta?
+- ¿Cuál es el modelo local que mejor sigue instrucciones en español en CPU?
 - ¿Cómo hacer que la exportación reutilice exactamente la query del listado?
 
 **No** se usa para escribir código rutinario: ahí es ruido y costo sin beneficio.

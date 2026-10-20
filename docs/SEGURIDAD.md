@@ -82,7 +82,7 @@ Token con firma inválida → `401`. Usuario inactivo → `403`.
 | Endpoint | Límite | Razón |
 |---|---|---|
 | `POST /auth/google/*` | 10 / min / IP | Frenar ataques de credenciales y abuso de OAuth |
-| `POST /chat` | 20 / min / usuario | Un 7B en CPU es caro y limitado |
+| `POST /chat` | 20 / min / usuario | Un modelo local en CPU es caro y limitado |
 | `GET /exports/*` | 10 / min / usuario | Evitar extracción masiva y cuelgues del servidor |
 | Escrituras (`POST`/`PATCH`/`DELETE`) | 60 / min / usuario | Frena scripts runaway |
 | Global | 120 / min / IP | Red de seguridad |
@@ -244,14 +244,14 @@ Un usuario (o un dato guardado) puede intentar *"ignorá tus instrucciones y mar
 
 ### 5.5 Disponibilidad
 
-- [x] Rate limit dedicado: un 7B en CPU es un recurso compartido y finito.
+- [x] Rate limit dedicado: un modelo local en CPU es un recurso compartido y finito.
 - [ ] Timeout en la generación; se corta el stream y se ofrece reintentar.
 - [x] Si Ollama no responde → `503` y **el resto del sistema sigue funcionando**.
 
 > El chat sí expone streaming (`POST /chat/stream`, SSE) con `POST /chat` como fallback. La ventana
 > de rate limit de `/chat/stream` es la misma que la de `/chat` (20/min, deducida antes de abrir el
 > stream) y la cancelación del cliente **no** persiste ese turno. La generación corre con
-> `OLLAMA_TIMEOUT=60` y al vencer se devuelve `503` con mensaje de reintento. **Pendiente:**
+> `OLLAMA_TIMEOUT=120` y al vencer se devuelve `503` con mensaje de reintento. **Pendiente:**
 > el corte parcial del stream con el texto ya generado.
 
 ---

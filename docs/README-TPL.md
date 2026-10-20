@@ -13,7 +13,8 @@ Sistema web de gestión para **DonataDeco**, emprendimiento de macramé y decora
 Reemplaza la operatoria en planillas Excel por una aplicación unificada de ventas, stock,
 pedidos, proveedores y envíos, con un asistente de IA local.
 
-![Captura del dashboard](docs/img/dashboard.png)
+<!-- Captura del dashboard: agregar una imagen real y referenciarla acá, p. ej.
+     ![Captura del dashboard](docs/img/dashboard.png) -->
 
 ---
 
@@ -24,7 +25,7 @@ pedidos, proveedores y envíos, con un asistente de IA local.
 | Frontend | React 19 · TypeScript · Vite · Tailwind CSS · TanStack Query |
 | Backend | FastAPI · Pydantic v2 · Motor (MongoDB asíncrono) · PyJWT |
 | Base de datos | MongoDB Atlas |
-| IA | LangChain + modelo local 7B (Ollama) |
+| IA | LangChain + modelo local 14B (Ollama) |
 | Infraestructura | Docker · Docker Compose |
 | Tests | pytest · Vitest · Playwright |
 
@@ -58,7 +59,8 @@ docker compose up --build
 ### Modelo de IA
 
 ```bash
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:14b-instruct
+ollama pull nomic-embed-text
 ollama serve
 ```
 
@@ -73,7 +75,7 @@ Sin Ollama, **el resto del sistema funciona con normalidad**: sólo el chat qued
 ```
 [React SPA] ──REST/JWT──▶ [FastAPI] ──▶ [MongoDB Atlas]
                               │
-                              └──▶ [Ollama local 7B]
+                              └──▶ [Ollama local 14B]
 ```
 
 Decisiones técnicas y sus porqués: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).

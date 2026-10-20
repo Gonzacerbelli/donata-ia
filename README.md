@@ -30,19 +30,21 @@ cp .env.example .env          # completar variables (ver abajo)
 # Pegar el connection string de Atlas en MONGO_URI (ver abajo)
 ollama pull qwen2.5:14b-instruct
 ollama pull nomic-embed-text
-docker compose up --build
+docker compose up --build     # levanta la API en :8000
+
+cd frontend && npm install && npm run dev   # servidor de desarrollo del frontend (:5173)
 ```
 
 **MongoDB Atlas.** La app trabaja contra un cluster de Atlas: en `.env` poné tu connection
 string en `MONGO_URI` (`mongodb+srv://…`) y agregá la IP pública del equipo a la Access List del
 cluster (Dashboard → Network Access). El `docker-compose.yml` levanta **sólo la API**: no hay
-Mongo local.
+Mongo local. El frontend se sirve aparte con Vite (`npm run dev`).
 
-| Servicio | URL |
-|---|---|
-| Aplicación web | http://localhost:5173 |
-| Documentación API | http://localhost:8000/docs |
-| Health check | http://localhost:8000/health |
+| Servicio | URL | Cómo se levanta |
+|---|---|---|
+| Aplicación web | http://localhost:5173 | `cd frontend && npm run dev` (Vite) |
+| Documentación API | http://localhost:8000/docs | `docker compose up` (contenedor `api`) |
+| Health check | http://localhost:8000/health | `docker compose up` (contenedor `api`) |
 
 Login local de emergencia (habilitado por `ENABLE_LOCAL_LOGIN=true`): `admin` / `cambiar-esta-clave`
 — **cambiarlo en `.env`** antes de exponer el servicio.
@@ -53,7 +55,7 @@ Login local de emergencia (habilitado por `ENABLE_LOCAL_LOGIN=true`): `admin` / 
 docker compose run --rm --no-deps api python -m scripts.seed_demo
 ```
 
-Genera 4 proveedores, 15 productos de macramé, 10 clientes y ~58 órdenes repartidas en el último
+Genera 4 proveedores, 15 productos de macramé, 10 clientes y ~48 órdenes repartidas en el último
 año, con pagos y estados variados, para que el dashboard muestre métricas reales.
 
 ### Variables de entorno requeridas
@@ -143,12 +145,12 @@ y `GET /users`. No se toca `docs/CASOS_DE_USO.md`.
 
 | Herramienta | Rol |
 |---|---|
-| `opencode` + `opencode.json` | CLI de agentes: 5 subagentes, 9 comandos, 10 skills y 6 servidores MCP |
-| `.opencode/agent/` | backend · frontend · ai-engineer · reviewer · security-auditor |
+| `opencode` + `opencode.json` | CLI de agentes: 5 subagentes, 9 comandos, 9 skills y 5 servidores MCP de desarrollo (+ el MCP propio del producto) |
+| `.opencode/agent/` | backend-engineer · frontend-engineer · reviewer (los otros dos subagentes, ai-engineer y security-auditor, se definen en `opencode.json`) |
 | `.opencode/skills/openspec-*` | Flujos de [OpenSpec](https://github.com/Fission-AI/OpenSpec): explore, propose, apply, verify, sync, archive, update, onboard |
 | `.opencode/skills/ollama-local` | Reglas para trabajar con el modelo local (guardrails, confirmación, latencia) |
-| LangChain + `langchain-mcp-adapters` | Bucle de tool-calling acotado (6 pasos) sobre MCP |
-| Ollama `qwen2.5:14b-instruct` | Lenguaje natural, temperatura 0 |
+| LangChain + `langchain-mcp-adapters` | Bucle de tool-calling acotado (8 pasos) sobre MCP |
+| Ollama `qwen2.5:14b-instruct` | Lenguaje natural y tool-calling (temperatura 0.1 para consultas/RAG; 0 en el agente) |
 | `sentence-transformers/all-MiniLM-L6-v2` | Embeddings locales para RAG sobre el manual operativo |
 
 ### 5.2 Orquestación de agentes
@@ -183,7 +185,7 @@ y `GET /users`. No se toca `docs/CASOS_DE_USO.md`.
 
 ### 5.5 Loops de autocorrección
 
-- **TDD:** 142 funciones de test (220 casos de pytest con parametrización, ruff `E/F/I/UP/B` limpio) y 54 de Vitest; las invariantes de
+- **TDD:** 178 funciones de test (≈220 casos de pytest con parametrización, ruff `E/F/I/UP/B` limpio) y 54 de Vitest; las invariantes de
   negocio tienen test antes de tocar el código.
 - **Evaluación del chat:** `scripts/e2e_check.py` contra Ollama real (tools MCP + RAG) y prueba
   manual del flujo de propuesta → confirmación → ejecución.
@@ -268,7 +270,7 @@ donata-ia/
 ## 9. Tests
 
 ```bash
-docker compose run --rm --no-deps api sh -c "ruff check app tests; pytest -q"   # backend (~176 casos)
+docker compose run --rm --no-deps api sh -c "ruff check app tests; pytest -q"   # backend (≈220 casos)
 docker compose run --rm --no-deps api python -m scripts.e2e_check               # chat real + RAG
 
 cd frontend && npm test              # Vitest (54)

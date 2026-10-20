@@ -89,7 +89,7 @@ rúbrica.
 |---|---|---|
 | **Contexto explícito** | Cada tarea declara CU, reglas aplicables y criterios de aceptación | La IA no adivina el dominio: se lo decís |
 | **Restricciones negativas** | *"No agregar roles"*, *"no usar API cloud"*, *"no comentar el código"* | Previene las decisiones por defecto que la IA haría mal |
-| **Ejemplos** | System prompt del chat, schemas | El modelo de 7B aprende la forma por imitación, no por descripción |
+| **Ejemplos** | System prompt del chat, schemas | El modelo aprende la forma por imitación, no por descripción |
 | **Estructuración** | System prompt en secciones (rol / contexto / reglas / formato / ejemplos) | Un prompt difuso produce comportamiento errático en modelos chicos |
 | **Temperatura baja para datos** | `OLLAMA_TEMPERATURE = 0.1` | Los datos de negocio no admiten creativity |
 | **TDD como prompt** | "Escribí primero el test que falla" | Ancla el comportamiento esperado antes de la implementación |
@@ -138,7 +138,7 @@ El chat es lo más difícil de verificar, porque la salida es texto libre. El lo
 5. Repetir hasta que la tasa de acierto sea aceptable
 ```
 
-**Este loop es el más importante del TP.** Un modelo de 7B en CPU no va a acertar el 100% de
+**Este loop es el más importante del TP.** Un modelo local en CPU no va a acertar el 100% de
 las veces; lo que se busca es que acierte en los flujos frecuentes y **que no haga nada
 peligroso cuando se equivoca**. El set de casos de prueba queda como evidencia.
 
@@ -362,15 +362,15 @@ servidor MCP, y que ese servidor sea **código propio** (plano de producto, no s
 de negocio en español que envuelvan los `services`; y un agente que las consuma con
 `MultiServerMCPClient`, con un bucle de tool-calling acotado y log de las herramientas usadas."*
 
-**Iteración.** 1) Se expusieron las 12 tools envolviendo `services`, no repositorios.
+**Iteración.** 1) Se expusieron las tools envolviendo `services`, no repositorios.
 2) Primer E2E real: el agente eligió bien la tool pero el `buscar_productos` falló con
 `localhost:27017` — el subproceso MCP **no heredaba** `MONGO_URI` del `env_file` de compose.
 → Se agregó `_server_env()` que inyecta explícitamente `MONGO_URI`, `CHROMA_DIR`,
 `OLLAMA_BASE_URL`, etc. al subproceso. 3) Se partió una línea larga del `SYSTEM_PROMPT` que
 rompía ruff (line-length 100).
 
-**Resultado.** `backend/app/mcp_server.py` (12 tools), `agent.py` (bucle de tool-calling,
-`MAX_STEPS=6`), `assistant.py` (guardrails + historial + persistencia de `tool_calls`),
+**Resultado.** `backend/app/mcp_server.py` (12 tools en ese hito; hoy 16), `agent.py` (bucle de
+tool-calling, `MAX_STEPS=8`), `assistant.py` (guardrails + historial + persistencia de `tool_calls`),
 `POST /chat`. **80 tests verdes** y E2E real:
 
 ```
@@ -418,7 +418,7 @@ cambian (catálogo): se resetean e indexan por separado.
 cascada sobre sus mensajes (es un chat: no aplica el `409` de integridad)."*
 
 **Iteración.** Se decidió que el historial que se le entrega al modelo es acotado
-(`CHAT_HISTORY_LIMIT`), no todo el hilo, para no inflar el prompt de un 7B.
+(`CHAT_HISTORY_LIMIT`), no todo el hilo, para no inflar el prompt de un modelo chico.
 
 **Resultado.** `services/chat_history.py`, `routers/chat.py`, `tests/test_chat_history.py`.
 
@@ -469,13 +469,13 @@ por `google_sub`, rechazo de cuentas inactivas, y login local de emergencia."*
 
 ### [20261001] Scaffolding: Docker + backend base — completado
 
-**Objetivo.** Dejar `docker compose up` levantando API + Mongo, con health check y configuración
-por entorno.
+**Objetivo.** Dejar `docker compose up` levantando la API, con health check y configuración
+por entorno. La base es **MongoDB Atlas** (remoto): el compose no levanta Mongo local.
 
 **Prompt (esencial).** *"Dockerfile python:3.12-slim, config con pydantic-settings que falla
 rápido, `/health`, y montar `data/` para caches de modelos."*
 
-**Iteración.** Se agregó `python-multipart`, `--no-deps` para correr tests sin re-levantar Mongo,
+**Iteración.** Se agregó `python-multipart`, `--no-deps` para correr tests sin re-levantar la API,
 y el montaje de `data/hf_cache` para no re-descargar el modelo de embeddings en cada arranque.
 
 **Resultado.** `docker-compose.yml`, `backend/Dockerfile`, `config.py`, `db.py`, `main.py`,
@@ -500,7 +500,7 @@ stock, notificaciones y exportación; cada uno con alcance frontend **y** backen
 
 **Iteración.** 1a versión → se agrega restricción de seguridad explícita y se eliminan los
 roles de usuario (decisión del cliente). 2a versión → se incorpora que el producto siempre
-tiene proveedor. 3a versión → el chat pasa a modelo local 7B. Cuarta → revisión de coherencia
+tiene proveedor. 3a versión → el chat pasa a modelo local. Cuarta → revisión de coherencia
 interna (los criterios de aceptación de cada CU deben ser verificables con lo implementado).
 
 **Resultado.** `docs/CASOS_DE_USO.md` + `docs/CASOS_DE_USO.pdf` (21 páginas, generado con

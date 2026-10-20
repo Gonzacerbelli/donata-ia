@@ -79,9 +79,9 @@ El usuario entrega `docs/CASOS_DE_USO.pdf` y espera el feedback.
 
 | Tarea | Detalle |
 |---|---|
-| `docker-compose.yml` | Servicios `api` (FastAPI) y `web` (Vite dev server) + red + volumenes |
+| `docker-compose.yml` | Servicio `api` (FastAPI) + volumenes. **Desvío:** no se implementó el servicio `web`; el frontend corre aparte con `npm run dev` (Vite) |
 | `backend/Dockerfile` | `python:3.12-slim`, install deps, `uvicorn` en 8000 |
-| `frontend/Dockerfile` | node para build + nginx para servir el bundle en prod |
+| `frontend/Dockerfile` | **No implementado:** el frontend se sirve con el dev server de Vite (`npm run dev`), no con nginx |
 | `backend/app/config.py` | `pydantic-settings`: lee `.env`, valida y falla rápido si falta algo |
 | `backend/app/db.py` | `AsyncIOMotorClient`, índices, ping en el startup |
 | `backend/app/main.py` | `lifespan`, CORS, headers de seguridad, rate limit, manejo de errores global, health check |
@@ -145,9 +145,9 @@ Orden dentro de la fase: primero los independentemente verificables, después el
 | 4.6 | Servidor MCP propio (`donata-mcp`) + agente con tool-calling por MCP + RAG sobre el manual operativo | CU07 | Tests por stdio real + E2E con Ollama real (`scripts/e2e_check.py`) |
 
 **Estado F4 (hito cerrado).** Implementado y en `main`: guardrails, historial de chat en Mongo,
-RAG local (Chroma + embeddings HuggingFace), el servidor MCP `donata-mcp` con 12 herramientas
+RAG local (Chroma + embeddings HuggingFace), el servidor MCP `donata-mcp` con 16 herramientas
 (consumido por el agente vía `langchain-mcp-adapters`), **notificaciones** (CU09) y **exportación
-CSV/XLSX** (CU10). **101 tests verdes** y chequeo E2E real con Ollama (`qwen2.5:7b-instruct`).
+CSV/XLSX** (CU10). **101 tests verdes** y chequeo E2E real con Ollama (`qwen2.5:14b-instruct`).
 
 - **4.2 Notificaciones.** `GET /notifications` recalcula las alertas del negocio en cada consulta
   (stock, envíos, cobros, orden incompleta) y las combina con el estado por usuario
@@ -169,7 +169,7 @@ CSV/XLSX** (CU10). **101 tests verdes** y chequeo E2E real con Ollama (`qwen2.5:
    `pending_action`/`done`/`error`), con `POST /chat` intacto como fallback.
 6. Fallback: si Ollama no responde, `503` con mensaje claro.
 
-> ⚠️ Los modelos de 7B en CPU son la parte más lenta del sistema. Diseñar la UI para que el
+> ⚠️ Los modelos locales en CPU son la parte más lenta del sistema. Diseñar la UI para que el
 > chat muestre un estado de "pensando" y no bloquee el resto de la app.
 
 ---
@@ -276,7 +276,7 @@ disponible como fallback no-streaming. La cancelación del cliente no persiste e
 | CU01 · Auth OAuth Google | 3.1 | 5 (auth) | usuario admin |
 | CU02 · Dashboard | 4.1 | 6.1 | órdenes con fechas variadas |
 | CU03 · ABM Productos | 3.3 | 6.3 | productos con proveedor |
-| CU04 · ABM Clientes | 3.4 | 6.4 | clientesDeclared |
+| CU04 · ABM Clientes | 3.4 | 6.4 | clientes |
 | CU05 · ABM Órdenes | 3.6 · 3.7 | 6.5 | órdenes + pagos |
 | CU06 · ABM Proveedores | 3.2 | 6.2 | proveedores |
 | CU07 · Chat IA | 4.4 · 4.5 | 7.2 · 7.3 · 7.4 | — |
@@ -290,7 +290,7 @@ disponible como fallback no-streaming. La cancelación del cliente no persiste e
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| El modelo 7B en CPU no sigue bien tool-calling | CU07 no cumple | Prompt estructurado en secciones · pocas tools bien descritas · `qwen2.5:7b-instruct` (el más fiel) · fallback a interpretación por intención si el tool-calling falla |
+| El modelo local en CPU no sigue bien tool-calling | CU07 no cumple | Prompt estructurado en secciones · pocas tools bien descritas · `qwen2.5:14b-instruct` (el más fiel) · fallback a interpretación por intención si el tool-calling falla |
 | Ollama no levanta dentro de Docker | Chat inaccesible | `host.docker.internal:11434` · documentar ambos modos · health check |
 | MongoDB Atlas sin IP whitelisted | Backend no conecta | Verificar la whitelist antes de F2 · documentar |
 | Cambio de alcance pedido por el docente | Retrabajo | Los CU están en un solo archivo versionado, fáciles de actualizar · regenerar el PDF con un comando |

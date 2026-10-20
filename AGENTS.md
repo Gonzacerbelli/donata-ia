@@ -37,12 +37,12 @@ orquestación de agentes, prompts deliberados, iteraciones y verificación autom
 | Validación docente de los CU | ⏳ **Pendiente** (el feedback llegó y se incorporó al alcance) |
 | Estructura del repo | ✅ Creada (carpetas + `.gitignore` + `.env.example`) |
 | Configuración de agentes/IA | ✅ `AGENTS.md` + `opencode.json` + `.opencode/{agent,command,skills}` |
-| Docker / compose | ✅ `docker-compose.yml` (api + mongo) + `backend/Dockerfile` |
+| Docker / compose | ✅ `docker-compose.yml` (solo `api`; Mongo remoto en Atlas) + `backend/Dockerfile` |
 | Backend FastAPI | ✅ Núcleo + negocio + soporte: auth, proveedores, productos, clientes, ventas, stock, reportes, historial de chat |
 | IA: RAG + agente MCP | ✅ `donata-mcp` (16 tools) + agente LangChain con tool-calling + RAG (Chroma) — E2E real con Ollama |
 | Frontend React | ✅ F5–F7: auth, dashboard, proveedores, productos, clientes, órdenes, notificaciones, chat |
 | Seed / datos de prueba | ✅ `backend/scripts/seed_demo.py` (productos, clientes y órdenes del último año) |
-| Tests | ✅ 142 funciones de test (≈176 casos) verdes (backend) · 45 unit + 9 E2E (frontend) |
+| Tests | ✅ 178 funciones de test (≈220 casos) verdes (backend) · 54 unit + 10 E2E (frontend) |
 | README final del TP | ✅ `README.md` (estructura de `docs/README-TPL.md`) |
 | Hardening / checklist de seguridad | ✅ `docs/SEGURIDAD.md` §7 verificado; deudas conocidas listadas ahí |
 
@@ -176,10 +176,11 @@ hay producto de catálogo que los represente. Ambos tipos conviven en la misma o
 ### Comandos canónicos
 
 ```bash
-docker compose up --build              # levantar backend + frontend
+docker compose up --build              # levantar la API (compose solo tiene api)
 docker compose logs -f api             # logs del backend
 docker compose run --rm api pytest     # tests del backend
 curl http://localhost:8000/health      # health check
+cd frontend && npm install && npm run dev   # servidor de desarrollo del frontend (5173)
 # http://localhost:5173  → aplicación web
 # http://localhost:8000/docs → documentación interactiva de la API
 ```

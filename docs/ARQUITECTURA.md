@@ -25,11 +25,11 @@
 │  middleware: CORS · SecurityHeaders · RateLimit · RequestID · ErrorHandler│
 │                                                                           │
 │  routers/     auth · providers · products · clients · sales · stock      │
-│               reports · notifications · exports · ai_chat                │
+│               reports · notifications · exports · chat · users · work     │
 │  ─────────────────────────────────────────────────────────────           │
-│  services/    products · clients · sales · stock · reports · exports     │
-│               notifications · auth                                       │
-│  services/llm agent · tools · prompts · ollama_client                    │
+│  services/    products · clients · sales · stock · reports · exports      │
+│               notifications · auth · chat_history · work                  │
+│  services/llm agent · assistant · guardrails · rag · vector_store         │
 │  ─────────────────────────────────────────────────────────────           │
 │  repositories/  acceso a MongoDB (Motor). Toda query vive acá.           │
 │  core/        config · errors · security · validation                     │
@@ -38,7 +38,7 @@
             ▼                                          ▼
    ┌─────────────────┐                    ┌──────────────────────────┐
    │  MongoDB Atlas  │                    │  Ollama (localhost:11434)│
-   │  SRV / M0       │                    │  qwen2.5:7b-instruct     │
+    │  SRV / M0       │                    │  qwen2.5:14b-instruct    │
    └─────────────────┘                    │  LOCAL · sin internet    │
                                           └──────────────────────────┘
 ```
@@ -174,7 +174,7 @@ venta y los pagos van **embebidos** porque siempre se leen junto con su orden.
 | Aspecto | Decisión | Motivo |
 |---|---|---|
 | Proveedor | **Ollama local** | Requisito: 100 % local, sin datos del negocio en la nube |
-| Modelo | `qwen2.5:7b-instruct` | Mejor seguimiento de instrucciones y tool-calling en 7B |
+| Modelo | `qwen2.5:14b-instruct` | Buen seguimiento de instrucciones y tool-calling en español |
 | Temperatura | `0.1` | Los datos de negocio no admiten creativity |
 | Transporte | `langchain-ollama` → HTTP a `localhost:11434` | Librarianía estándar, integra con LangChain |
 | Memoria | Historial por `thread_id` | El asistente recuerda el contexto de la conversación |
@@ -212,7 +212,7 @@ def crear_orden(
 ### 6.4 System prompt
 
 Estructurado en secciones explícitas (rol → contexto → reglas duras → formato → ejemplos). Un
-7B necesita estructura explícita; un prompt largo y difuso produce comportamiento errático.
+modelo pequeño necesita estructura explícita; un prompt largo y difuso produce comportamiento errático.
 El texto exacto vive en `backend/app/services/llm/prompts.py` versionado, y su evolución se
 documenta en `docs/AI-ENGINEERING.md`.
 
@@ -307,5 +307,5 @@ Dónde tocar para agregar funcionalidad sin romper lo existente:
 | Un campo nuevo en una entidad | Modelo → schema → repository → service → router → schema del frontend → componente |
 | Un tipo de notificación nuevo | Regla en `services/notifications.py` + tipo en el catálogo de `docs/CASOS_DE_USO.md` §9.1 |
 | Una tool nueva del chat IA | Tool en `services/llm/tools.py` + descripción en el system prompt + test |
-| Cambiar el modelo de IA | `OLLAMA_MODEL` en `.env`. **Probar el tool-calling antes**: no todos los 7B se comportan igual |
+| Cambiar el modelo de IA | `OLLAMA_MODEL` en `.env`. **Probar el tool-calling antes**: no todos los modelos se comportan igual |
 | Cambiar la política de rate limit | `middleware/security.py`, un valor por endpoint desde settings |
