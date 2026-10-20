@@ -246,7 +246,7 @@ async def confirm_pending(db, user_id: str, thread_id: str, token: str) -> dict:
         raise UnprocessableError(f"No se pudo ejecutar: {failure}")
 
     summary = str(entry["summary"]).rstrip(".")
-    reply = guardrails.sanitize_answer(f"{summary}. Hecho. Revisá el resultado en la pantalla.")
+    reply = guardrails.sanitize_answer(f"Listo, quedó hecho: {summary}.")
     tool_call = {"name": entry["tool"], "arguments": entry["args"], "result": result, "ok": True}
 
     await chat_history.append_message(db, thread_id, "assistant", reply, tool_calls=[tool_call])

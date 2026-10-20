@@ -192,10 +192,39 @@ WRITE_VERBS = [
     "reponer",
 ]
 
+# Raíces (prefijo de token, sin tildes) que cubren las conjugaciones y el voseo de los verbos
+# de escritura: "repone" no matchea "reponer" pero sí la raíz "repon".
+WRITE_STEMS = [
+    "crea",
+    "carg",
+    "registr",
+    "agreg",
+    "modific",
+    "actualiz",
+    "edit",
+    "elimin",
+    "borr",
+    "ingres",
+    "sumar",
+    "anul",
+]
+
 # Verbos que también aparecen en consultas ("qué pedido resta cancelar", "cuánto hay
 # que pagar", "qué productos debo reponer"): sólo cuentan como acción si el mensaje no
 # tiene señales de consulta.
-AMBIGUOUS_WRITE_VERBS = ["cancelar", "pagar", "reponer"]
+AMBIGUOUS_WRITE_STEMS = ["cancel", "pag", "repon"]
+
+# Palabras que empiezan con una raíz de escritura pero son sustantivos/adjetivos de consulta.
+WRITE_WORD_EXCEPTIONS = {
+    "pago",
+    "pagos",
+    "cancelacion",
+    "cancelaciones",
+    "cancelado",
+    "cancelada",
+    "cancelados",
+    "canceladas",
+}
 
 QUERY_OVERRIDES = [
     "cual",
@@ -284,17 +313,24 @@ def is_off_topic(text: str) -> bool:
 def mentions_write_action(text: str) -> bool:
     """True si el pedido del usuario implica crear, modificar o registrar algo.
 
-    Los verbos ambiguos (`cancelar`, `pagar`) también se usan en consultas ("el pedido
-    que resta cancelar", "cuánto hay que pagar"): sólo se cuentan como acción cuando el
-    mensaje no tiene una señal clara de consulta.
+    Compara por raíz de token (no por subcadena) para reconocer conjugaciones y voseo:
+    "repone" no contiene "reponer", pero empieza con la raíz "repon". Los verbos ambiguos
+    (`cancelar`, `pagar`, `reponer`) también se usan en consultas ("el pedido que resta
+    cancelar", "cuánto hay que pagar", "qué productos debo reponer"): sólo se cuentan como
+    acción cuando el mensaje no tiene una señal clara de consulta ni un sustantivo de
+    consulta ("ventas canceladas", "total de los pagos").
     """
     norm = _normalize(text)
-    hard = [verb for verb in WRITE_VERBS if verb not in AMBIGUOUS_WRITE_VERBS]
-    if _contains_any(norm, hard):
+    tokens = [token.strip("¿?¡!.,;:\"'()") for token in _WS.split(norm)]
+    hard = any(token.startswith(stem) for token in tokens for stem in WRITE_STEMS)
+    if hard:
         return True
-    if _contains_any(norm, AMBIGUOUS_WRITE_VERBS):
-        return not _contains_any(norm, QUERY_OVERRIDES)
-    return False
+    ambiguous = any(token.startswith(stem) for token in tokens for stem in AMBIGUOUS_WRITE_STEMS)
+    if not ambiguous:
+        return False
+    if any(token in WRITE_WORD_EXCEPTIONS for token in tokens):
+        return False
+    return not _contains_any(norm, QUERY_OVERRIDES)
 
 
 READ_PREFIXES = [
